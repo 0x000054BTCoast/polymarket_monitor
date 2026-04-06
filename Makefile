@@ -1,7 +1,9 @@
 .PHONY: backend-install backend-run backend-test frontend-install frontend-run
 
 backend-install:
-	python -m venv .venv && . .venv/bin/activate && pip install -r backend/requirements.txt
+	PYTHON_BIN=$$(command -v python3 || command -v python); \
+	PIP_BIN=$$(command -v pip3 || command -v pip); \
+	$$PYTHON_BIN -m venv .venv && . .venv/bin/activate && $$PIP_BIN install -r backend/requirements.txt
 
 backend-run:
 	cd backend && PYTHONPATH=. uvicorn app.main:app --reload --port 8000
