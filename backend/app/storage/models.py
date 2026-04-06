@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import JSON, Column
+from sqlalchemy import JSON, Column, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -47,6 +47,8 @@ class Market(SQLModel, table=True):
 
 
 class Snapshot(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("market_id", "ts", name="uq_snapshot_market_ts"),)
+
     id: Optional[int] = Field(default=None, primary_key=True)
     market_id: str = Field(index=True, foreign_key="market.id")
     ts: datetime = Field(index=True)
@@ -58,6 +60,8 @@ class Snapshot(SQLModel, table=True):
 
 
 class MinuteAggregation(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("market_id", "minute_ts", name="uq_minagg_market_minute"),)
+
     id: Optional[int] = Field(default=None, primary_key=True)
     market_id: str = Field(index=True, foreign_key="market.id")
     minute_ts: datetime = Field(index=True)

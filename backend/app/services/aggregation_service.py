@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import delete
+from sqlalchemy.dialects.sqlite import insert
 from sqlmodel import select
 
+from app.config import settings
 from app.http.polymarket_clob import ClobClient
 from app.storage.db import get_session
-from app.storage.models import Market, MinuteAggregation, Snapshot
+from app.storage.models import AlertRecord, Market, MinuteAggregation, RankingSnapshot, Snapshot
 from app.ws.market_ws import MarketWebSocketListener
 
 
@@ -30,15 +33,25 @@ class AggregationService:
                     price = p.get("p") or p.get("price")
                     if ts is None:
                         continue
-                    session.add(
-                        Snapshot(
+                    stmt = (
+                        insert(Snapshot)
+                        .values(
                             market_id=m.id,
                             ts=datetime.fromtimestamp(int(ts), tz=timezone.utc),
                             price=float(price) if price is not None else None,
                             volume_24hr=m.volume_24hr,
                             liquidity=m.liquidity,
                         )
+                        .on_conflict_do_update(
+                            index_elements=["market_id", "ts"],
+                            set_={
+                                "price": float(price) if price is not None else None,
+                                "volume_24hr": m.volume_24hr,
+                                "liquidity": m.liquidity,
+                            },
+                        )
                     )
+                    session.exec(stmt)
                     saved += 1
             session.commit()
         return saved
@@ -57,7 +70,37 @@ class AggregationService:
                 market_id = id_by_asset.get(asset)
                 if not market_id:
                     continue
-                session.add(MinuteAggregation(market_id=market_id, minute_ts=now, **row))
+                stmt = (
+                    insert(MinuteAggregation)
+                    .values(market_id=market_id, minute_ts=now, **row)
+                    .on_conflict_do_update(
+                        index_elements=["market_id", "minute_ts"],
+                        set_=row,
+                    )
+                )
+                session.exec(stmt)
                 written += 1
             session.commit()
         return written
+
+    def prune_old_data(self, retention_hours: int | None = None) -> dict[str, int]:
+        retention = retention_hours or settings.data_retention_hours
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=retention)
+        deleted = {"snapshots": 0, "minute_aggregations": 0, "ranking_snapshots": 0, "alerts": 0}
+
+        with get_session() as session:
+            snapshot_result = session.exec(delete(Snapshot).where(Snapshot.ts < cutoff))
+            deleted["snapshots"] = int(snapshot_result.rowcount or 0)
+
+            min_result = session.exec(delete(MinuteAggregation).where(MinuteAggregation.minute_ts < cutoff))
+            deleted["minute_aggregations"] = int(min_result.rowcount or 0)
+
+            ranking_result = session.exec(delete(RankingSnapshot).where(RankingSnapshot.generated_at < cutoff))
+            deleted["ranking_snapshots"] = int(ranking_result.rowcount or 0)
+
+            alert_result = session.exec(delete(AlertRecord).where(AlertRecord.created_at < cutoff))
+            deleted["alerts"] = int(alert_result.rowcount or 0)
+
+            session.commit()
+
+        return deleted
