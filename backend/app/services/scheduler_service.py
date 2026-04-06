@@ -40,6 +40,11 @@ class SchedulerService:
             "interval",
             seconds=settings.flush_aggregation_seconds,
         )
+        self.scheduler.add_job(
+            self._cleanup_tick,
+            "interval",
+            seconds=settings.cleanup_check_seconds,
+        )
         self.scheduler.add_job(self._ws_health_tick, "interval", seconds=10)
         self.scheduler.add_job(self._alert_tick, "interval", seconds=60)
         self.scheduler.start()
@@ -64,6 +69,14 @@ class SchedulerService:
     def _flush_ws_tick(self) -> None:
         written = self.aggregation.flush_ws_minute_aggregations()
         logger.info("WS minute flush written=%s", written)
+
+    def _cleanup_tick(self) -> None:
+        deleted = self.aggregation.prune_old_data()
+        logger.info("Pruned old data snapshots=%s minute_aggregations=%s ranking_snapshots=%s alerts=%s",
+                    deleted["snapshots"],
+                    deleted["minute_aggregations"],
+                    deleted["ranking_snapshots"],
+                    deleted["alerts"])
 
     def _ws_health_tick(self) -> None:
         stale = self.ws_listener.is_stale()
