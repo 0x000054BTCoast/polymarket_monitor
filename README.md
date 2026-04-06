@@ -140,6 +140,7 @@ Frontend runs at: `http://localhost:3000`
 
 ## 部署文档（中文）
 
+- 生产环境必须 Python>=3.11（建议固定 3.11.x，避免版本误配）。
 - 零基础部署指南：`docs/零基础部署指南.md`
 
 ## Testing
