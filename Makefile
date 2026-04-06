@@ -12,7 +12,14 @@ backend-test:
 	cd backend && PYTHONPATH=. pytest -q
 
 frontend-install:
-	cd frontend && npm install
+	cd frontend && \
+		tmp_npm_global=$$(mktemp) && \
+		env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy \
+		-u NPM_CONFIG_PROXY -u NPM_CONFIG_HTTPS_PROXY -u npm_config_proxy -u npm_config_https_proxy \
+		-u npm_config_http_proxy -u npm_config_http-proxy -u npm_config_https-proxy \
+		npm --userconfig=/dev/null --globalconfig=$$tmp_npm_global install \
+		--registry=https://registry.npmjs.org/ && \
+		rm -f $$tmp_npm_global
 
 frontend-run:
 	cd frontend && npm run dev
