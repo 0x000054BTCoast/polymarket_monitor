@@ -12,7 +12,11 @@ backend-test:
 	cd backend && PYTHONPATH=. pytest -q
 
 frontend-install:
-	cd frontend && npm install
+	cd frontend && \
+		env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy \
+		npm_config_registry=https://registry.npmjs.org/ \
+		npm_config_proxy= npm_config_https_proxy= \
+		npm install
 
 frontend-run:
 	cd frontend && npm run dev

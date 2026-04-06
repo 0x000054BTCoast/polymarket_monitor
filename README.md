@@ -132,6 +132,9 @@ make frontend-run
 
 Frontend runs at: `http://localhost:3000`
 
+> `make frontend-install` 已内置清理常见本地代理环境变量并固定 registry 到 `https://registry.npmjs.org/`，
+> 可避免 `ECONNREFUSED 127.0.0.1:<port>` 这类由错误代理配置导致的安装失败。
+
 ## 部署文档（中文）
 
 - 零基础部署指南：`docs/零基础部署指南.md`
