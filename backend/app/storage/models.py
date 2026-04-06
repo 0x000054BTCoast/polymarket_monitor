@@ -81,7 +81,7 @@ class AlertRecord(SQLModel, table=True):
     event_id: Optional[str] = Field(default=None, index=True)
     market_id: Optional[str] = Field(default=None, index=True)
     message: str
-    metadata: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    details: dict = Field(default_factory=dict, sa_column=Column("metadata", JSON))
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
 
