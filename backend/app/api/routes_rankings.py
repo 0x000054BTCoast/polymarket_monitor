@@ -37,3 +37,9 @@ def disagreement(limit: int = 20) -> dict:
 def new_entrants(top_n: int = 10) -> dict:
     with get_session() as session:
         return {"rows": service.new_entrants(session, top_n=top_n), "derived": True}
+
+
+@router.get("/hot-trend")
+def hot_trend(hours: int = 24, top_k: int = 5) -> dict:
+    with get_session() as session:
+        return service.hot_trend(session, hours=hours, top_k=top_k)

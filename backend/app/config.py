@@ -31,6 +31,17 @@ class Settings(BaseSettings):
     request_timeout_seconds: int = 20
     disable_background_jobs: bool = False
 
+    lark_enabled: bool = False
+    lark_webhook_url: str = ""
+    lark_signing_secret: str = ""
+    lark_dry_run: bool = True
+    summary_push_cron: str = "0 */6 * * *"
+    alert_push_enabled: bool = False
+    alert_push_cooldown_seconds: int = 900
+
+    ai_agent_enabled: bool = False
+    ai_agent_provider: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

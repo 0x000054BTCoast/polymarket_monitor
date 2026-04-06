@@ -19,3 +19,12 @@ def test_rankings_shape() -> None:
         r = client.get("/api/rankings/hot-events")
         assert r.status_code == 200
         assert "rows" in r.json()
+
+
+def test_signals_route_shape() -> None:
+    with TestClient(app) as client:
+        r = client.get("/api/signals/arbitrage")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["derived"] is True
+        assert "rows" in body

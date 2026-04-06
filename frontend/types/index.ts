@@ -28,6 +28,12 @@ export type EventRow = {
 
 export type RankRow = Record<string, unknown>;
 
+export type HotTrendSeries = {
+  event_id: string;
+  title: string;
+  points: Array<{ ts: string; hot_score: number }>;
+};
+
 export type AlertsResponse = {
   rows: Array<{
     id: number;

@@ -78,6 +78,15 @@ class RankingSnapshot(SQLModel, table=True):
     payload: dict = Field(default_factory=dict, sa_column=Column(JSON))
 
 
+
+
+class SignalSnapshot(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    signal_type: str = Field(index=True)
+    generated_at: datetime = Field(index=True)
+    payload: dict = Field(default_factory=dict, sa_column=Column(JSON))
+
+
 class AlertRecord(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     alert_type: str = Field(index=True)
