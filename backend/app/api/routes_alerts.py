@@ -32,7 +32,7 @@ def list_alerts(limit: int = 100) -> dict:
                     "message": a.message,
                     "event_id": a.event_id,
                     "market_id": a.market_id,
-                    "metadata": a.metadata,
+                    "metadata": a.details,
                     "created_at": a.created_at,
                 }
                 for a in alerts

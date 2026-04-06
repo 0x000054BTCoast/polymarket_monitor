@@ -51,7 +51,7 @@ class AlertService:
             severity=severity,
             event_id=event_id,
             market_id=market_id,
-            metadata=metadata or {},
+            details=metadata or {},
         )
         session.add(rec)
         session.commit()
