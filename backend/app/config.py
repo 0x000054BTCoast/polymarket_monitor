@@ -18,7 +18,9 @@ class Settings(BaseSettings):
     discovery_poll_seconds: int = 60
     snapshot_poll_seconds: int = 60
     flush_aggregation_seconds: int = 15
+    cleanup_check_seconds: int = 3600
     websocket_stale_seconds: int = 45
+    data_retention_hours: int = 24
 
     rolling_baseline_minutes: int = 5
     max_ws_buffer_minutes: int = 30
