@@ -2,19 +2,28 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import AlertTimeline from "@/components/AlertTimeline";
-import AlertsPanel from "@/components/AlertsPanel";
-import ControlsBar from "@/components/ControlsBar";
-import EventDetailDrawer from "@/components/EventDetailDrawer";
-import HotTrendChart from "@/components/charts/HotTrendChart";
-import HeatShockChart from "@/components/charts/HeatShockChart";
-import MarketLinkView from "@/components/charts/MarketLinkView";
-import RankTable from "@/components/RankTable";
-import SourceHealthPanel from "@/components/SourceHealthPanel";
-import SummaryBar from "@/components/SummaryBar";
+import AlertsList from "@/components/AlertsList";
+import EventDrawer from "@/components/EventDrawer";
+import FilterBar from "@/components/FilterBar";
+import HeatRisersTable from "@/components/HeatRisersTable";
+import HotEventsTable from "@/components/HotEventsTable";
+import PriceMoversTable from "@/components/PriceMoversTable";
+import SourceHealth from "@/components/SourceHealth";
+import SummaryStats from "@/components/SummaryStats";
+import AlertTimeline from "@/components/charts/AlertTimeline";
+import CorrelationView from "@/components/charts/CorrelationView";
+import HeatBarChart from "@/components/charts/HeatBarChart";
+import TrendChart from "@/components/charts/TrendChart";
+import Badge from "@/components/ui/Badge";
 import { api } from "@/lib/api";
 import { mockAlerts, mockHeat, mockHot, mockMovers, mockStatus } from "@/lib/mock";
-import { AlertsResponse, EventDetailResponse, HotTrendSeries, RankRow, SystemStatus } from "@/types";
+import {
+  AlertsResponse,
+  EventDetailResponse,
+  HotTrendSeries,
+  RankRow,
+  SystemStatus,
+} from "@/types";
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
@@ -25,20 +34,28 @@ export default function DashboardPage() {
   const [heat, setHeat] = useState<RankRow[]>([]);
   const [movers, setMovers] = useState<RankRow[]>([]);
   const [alerts, setAlerts] = useState<AlertsResponse | null>(null);
-  const [q, setQ] = useState("");
+
+  const [searchQuery, setSearchQuery] = useState("");
   const [category, setCategory] = useState("");
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [detail, setDetail] = useState<EventDetailResponse | null>(null);
   const [topK, setTopK] = useState(5);
   const [timelineSeverity, setTimelineSeverity] = useState("");
 
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [detail, setDetail] = useState<EventDetailResponse | null>(null);
+
   useEffect(() => {
-    let t: NodeJS.Timeout;
+    let timeout: NodeJS.Timeout;
+
     const load = async () => {
       try {
         const [s, h, ht, hr, pm, a] = await Promise.all([
-          api.system(), api.hotEvents(), api.hotTrend(24, topK), api.heatRisers(), api.priceMovers(), api.alerts()
+          api.system(),
+          api.hotEvents(),
+          api.hotTrend(24, topK),
+          api.heatRisers(),
+          api.priceMovers(),
+          api.alerts(),
         ]);
         setStatus(s);
         setHot(h.rows || []);
@@ -58,107 +75,218 @@ export default function DashboardPage() {
       } finally {
         setLoading(false);
       }
-      if (autoRefresh) t = setTimeout(load, 15000);
+
+      if (autoRefresh) {
+        timeout = setTimeout(load, 15000);
+      }
     };
+
     load();
-    return () => clearTimeout(t);
+
+    return () => clearTimeout(timeout);
   }, [autoRefresh, topK]);
 
   const filteredHot = useMemo(() => {
     return hot.filter((r) => {
-      const title = String((r as any).title || "").toLowerCase();
-      const rowCategory = String((r as any).category || "");
-      return title.includes(q.toLowerCase()) && (!category || rowCategory === category);
+      const title = String(r.title || "").toLowerCase();
+      const rowCategory = String(r.category || "");
+      return (
+        title.includes(searchQuery.toLowerCase()) &&
+        (!category || rowCategory === category)
+      );
     });
-  }, [hot, q, category]);
+  }, [hot, searchQuery, category]);
 
   const openDetailFromRow = async (row: RankRow) => {
-    const eventId = String((row as any).event_id || "");
+    const eventId = String(row.event_id || "");
     if (!eventId) return;
+
     setDrawerOpen(true);
     setDetail(null);
+
     try {
       const result = await api.eventDetail(eventId);
       setDetail(result);
     } catch {
       setDetail({
-        event: { id: eventId, title: "MOCK/DEMO Event detail", active: true, closed: false },
-        markets: []
+        event: {
+          id: eventId,
+          title: "Demo Event",
+          active: true,
+          closed: false,
+        },
+        markets: [],
       });
     }
   };
 
   return (
-    <main className="max-w-[1480px] mx-auto px-4 py-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <h1 className="text-sm font-semibold tracking-[0.08em] uppercase">Trading Monitor Dashboard</h1>
-        <span className="text-[11px] muted">DERIVED Signals · Non-advisory</span>
-      </div>
-
-      {degraded && (
-        <div className="panel-2 px-3 py-2 text-[12px] border-amber-700 text-amber-200">
-          Degraded mode: using clearly labeled MOCK/DEMO data because backend is unavailable.
-        </div>
-      )}
-
-      <SummaryBar status={status} />
-      <ControlsBar q={q} setQ={setQ} category={category} setCategory={setCategory} autoRefresh={autoRefresh} setAutoRefresh={setAutoRefresh} />
-      {loading ? <div className="muted text-[12px]">Loading...</div> : null}
-
-      <section className="panel p-3 space-y-3">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <h2 className="text-sm font-semibold">热点可视化（DERIVED）</h2>
-          <div className="flex items-center gap-2 text-[12px]">
-            <label>Top K</label>
-            <select className="panel-2 px-2 py-1" value={topK} onChange={(e) => setTopK(Number(e.target.value))}>
-              <option value={3}>3</option>
-              <option value={5}>5</option>
-              <option value={8}>8</option>
-            </select>
+    <div className="min-h-screen bg-background">
+      <div className="max-w-[1600px] mx-auto px-6 py-6 space-y-6">
+        {/* Page Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Real-time prediction market monitoring
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {degraded && (
+              <Badge variant="warning">Mock Mode</Badge>
+            )}
+            {loading && (
+              <Badge variant="muted">Loading...</Badge>
+            )}
           </div>
         </div>
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
-          <div className="panel-2 p-3 xl:col-span-2">
-            <div className="mb-2 text-[12px] font-medium">Hot Trend</div>
-            <HotTrendChart series={hotTrend} />
+
+        {/* Degraded Mode Banner */}
+        {degraded && (
+          <div className="card p-4 border-warning/30 bg-warning/5">
+            <div className="flex items-center gap-3">
+              <svg
+                className="w-5 h-5 text-warning flex-shrink-0"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+              <div>
+                <p className="text-sm font-medium text-warning">Demo Mode Active</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Backend is unavailable. Displaying mock data for demonstration purposes.
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="panel-2 p-3">
-            <div className="mb-2 text-[12px] font-medium">Heat Shock (z&gt;2 highlighted)</div>
-            <HeatShockChart rows={heat} threshold={2} />
-          </div>
-          <div className="panel-2 p-3 xl:col-span-3">
-            <div className="mb-2 text-[12px] font-medium">Correlation / Dependency View</div>
-            <MarketLinkView movers={movers} heat={heat} />
-          </div>
-          <div className="panel-2 p-3 xl:col-span-3">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-[12px] font-medium">Alert Timeline</div>
-              <select className="panel px-2 py-1 text-[12px]" value={timelineSeverity} onChange={(e) => setTimelineSeverity(e.target.value)}>
-                <option value="">全部</option>
-                <option value="critical">critical</option>
-                <option value="warning">warning</option>
-                <option value="info">info</option>
+        )}
+
+        {/* Summary Stats */}
+        <SummaryStats status={status} />
+
+        {/* Filters */}
+        <FilterBar
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          category={category}
+          onCategoryChange={setCategory}
+          autoRefresh={autoRefresh}
+          onAutoRefreshChange={setAutoRefresh}
+        />
+
+        {/* Charts Section */}
+        <div className="card">
+          <div className="p-4 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h2 className="font-semibold">Analytics Overview</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Visualizations of market activity and trends
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-muted-foreground">Top K:</label>
+              <select
+                value={topK}
+                onChange={(e) => setTopK(Number(e.target.value))}
+                className="select"
+              >
+                <option value={3}>3</option>
+                <option value={5}>5</option>
+                <option value={8}>8</option>
+                <option value={10}>10</option>
               </select>
             </div>
-            <AlertTimeline alerts={alerts} filter={timelineSeverity} />
+          </div>
+
+          <div className="p-4 space-y-6">
+            {/* Row 1: Trend Chart and Heat Chart */}
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+              <div className="xl:col-span-2">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-medium">Hot Score Trend</h3>
+                  <Badge variant="muted" size="sm">24h</Badge>
+                </div>
+                <div className="chart-container">
+                  <TrendChart series={hotTrend} height={220} />
+                </div>
+              </div>
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-medium">Heat Distribution</h3>
+                  <Badge variant="muted" size="sm">z-score</Badge>
+                </div>
+                <div className="chart-container">
+                  <HeatBarChart rows={heat} threshold={2} maxItems={8} />
+                </div>
+              </div>
+            </div>
+
+            {/* Row 2: Correlation View */}
+            <div>
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-medium">Price-Heat Correlation</h3>
+                <Badge variant="muted" size="sm">Top 6 Movers</Badge>
+              </div>
+              <div className="chart-container">
+                <CorrelationView movers={movers} heat={heat} maxItems={6} />
+              </div>
+            </div>
+
+            {/* Row 3: Alert Timeline */}
+            <div>
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-medium">Alert Timeline</h3>
+                <select
+                  value={timelineSeverity}
+                  onChange={(e) => setTimelineSeverity(e.target.value)}
+                  className="select text-xs h-8"
+                >
+                  <option value="">All Severities</option>
+                  <option value="critical">Critical</option>
+                  <option value="warning">Warning</option>
+                  <option value="info">Info</option>
+                </select>
+              </div>
+              <div className="chart-container">
+                <AlertTimeline alerts={alerts} filter={timelineSeverity} maxItems={20} />
+              </div>
+            </div>
           </div>
         </div>
-      </section>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-3 items-start">
-        <div className="space-y-3 min-w-0">
-          <RankTable title="Hot Events (DERIVED)" rows={filteredHot} onRowClick={openDetailFromRow} />
-          <RankTable title="Minute Heat Risers (DERIVED)" rows={heat} />
-          <RankTable title="Price Movers (DERIVED)" rows={movers} />
+        {/* Tables Section */}
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-6 items-start">
+          {/* Main Content */}
+          <div className="space-y-6">
+            <HotEventsTable rows={filteredHot} onRowClick={openDetailFromRow} />
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <HeatRisersTable rows={heat} />
+              <PriceMoversTable rows={movers} />
+            </div>
+          </div>
+
+          {/* Sidebar */}
+          <div className="space-y-6 xl:sticky xl:top-20">
+            <AlertsList alerts={alerts} maxItems={15} />
+            <SourceHealth status={status} />
+          </div>
         </div>
-
-        <aside className="space-y-3 xl:sticky xl:top-[54px]">
-          <AlertsPanel alerts={alerts} />
-          <SourceHealthPanel status={status} />
-        </aside>
       </div>
 
-      <EventDetailDrawer open={drawerOpen} detail={detail} onClose={() => setDrawerOpen(false)} />
-    </main>
+      {/* Event Detail Drawer */}
+      <EventDrawer
+        open={drawerOpen}
+        detail={detail}
+        onClose={() => setDrawerOpen(false)}
+      />
+    </div>
   );
 }
