@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #050814;
+  --panel: #0b1220;
+  --panel-2: #111a2d;
+  --border: #1e2b45;
+  --text: #dbe6ff;
+  --muted: #8fa3c7;
+  --accent: #3b82f6;
+}
+
+html,
+body {
+  background: radial-gradient(circle at top, #0a1020 0%, var(--bg) 45%);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.panel-2 {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.dense-table th,
+.dense-table td {
+  padding-top: 0.45rem;
+  padding-bottom: 0.45rem;
+}
