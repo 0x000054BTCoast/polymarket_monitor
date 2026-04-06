@@ -132,6 +132,10 @@ make frontend-run
 
 Frontend runs at: `http://localhost:3000`
 
+## 部署文档（中文）
+
+- 零基础部署指南：`docs/零基础部署指南.md`
+
 ## Testing
 
 ```bash
