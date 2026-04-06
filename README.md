@@ -60,6 +60,8 @@ No trading, order placement, wallet auth, or private endpoints are implemented.
 - `GET /api/rankings/disagreement`
 - `GET /api/rankings/new-entrants`
 - `GET /api/alerts`
+- `GET /api/signals/arbitrage?limit=50`
+- `GET /api/rankings/hot-trend?hours=24&top_k=5`
 - `GET /api/alerts/config`
 - `POST /api/alerts/config`
 
@@ -165,3 +167,55 @@ Current tests cover:
 - Add richer filtering/analytics dimensions
 - Add containerized deployment manifests
 - Add optional RTDS mode behind explicit flag
+
+
+## DERIVED arbitrage signals (research only)
+
+新增 `SignalService` 输出以下 **DERIVED** 信号（非投资建议）：
+
+- `binary_parity_gap`: 估算 `|YES + NO - 1|` 偏离。
+- `cross_market_logic_gap`: 同 event 内基于 subset/superset v1 规则的违约幅度。
+- `liquidity_adjusted_edge`: 按流动性衰减后的边际强度。
+- `execution_feasibility_score`: 综合数据新鲜度、book update 与滑点近似评分。
+
+API 返回结构：
+
+```json
+{
+  "rows": [],
+  "derived": true,
+  "as_of": "2026-04-06T00:00:00+00:00",
+  "method_version": "v1"
+}
+```
+
+每条信号均附 `risk_flags` 与免责声明文案：
+`DERIVED 信号，非投资建议，仅供研究。`
+
+## Lark/飞书通知
+
+支持 Webhook 通知通道（可 dry-run），包含：
+
+- 定时摘要推送（默认每 6 小时）
+- 高频告警即时推送（heat/notional/ws stale），含冷却去重
+- 可插拔 `InsightAgent` 文案生成
+
+新增配置：
+
+- `LARK_ENABLED`
+- `LARK_WEBHOOK_URL`
+- `LARK_SIGNING_SECRET`
+- `LARK_DRY_RUN`
+- `SUMMARY_PUSH_CRON`
+- `ALERT_PUSH_ENABLED`
+- `ALERT_PUSH_COOLDOWN_SECONDS`
+
+## AI Agent 扩展位
+
+新增抽象接口 `InsightAgent`：
+
+- `summarize_market(context)`
+- `explain_signal(signal_row)`
+- `compose_notification(payload)`
+
+默认 `RuleBasedInsightAgent` 离线可用；可选 `LLMInsightAgent` 预留配置位，若失败自动回退规则实现。

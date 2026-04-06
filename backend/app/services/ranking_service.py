@@ -143,6 +143,25 @@ class RankingService:
         out.sort(key=lambda x: x["heat_rise"], reverse=True)
         return out[:limit]
 
+
+    def hot_trend(self, session: Session, hours: int = 24, top_k: int = 5) -> dict:
+        since = datetime.now(timezone.utc) - timedelta(hours=hours)
+        snaps = session.exec(
+            select(RankingSnapshot)
+            .where(RankingSnapshot.ranking_type == "hot-events", RankingSnapshot.generated_at >= since)
+            .order_by(RankingSnapshot.generated_at.asc())
+        ).all()
+        series_map: dict[str, dict] = {}
+        for snap in snaps:
+            for row in snap.payload.get("rows", [])[:top_k]:
+                eid = row.get("event_id")
+                if not eid:
+                    continue
+                if eid not in series_map:
+                    series_map[eid] = {"event_id": eid, "title": row.get("title", eid), "points": []}
+                series_map[eid]["points"].append({"ts": snap.generated_at.isoformat(), "hot_score": row.get("hot_score", 0)})
+        return {"rows": list(series_map.values()), "derived": True, "as_of": datetime.now(timezone.utc).isoformat()}
+
     def price_movers(self, session: Session, limit: int = 20) -> list[dict]:
         now = datetime.now(timezone.utc)
         rows = session.exec(select(Snapshot).where(Snapshot.ts >= now - timedelta(minutes=6))).all()

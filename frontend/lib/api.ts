@@ -1,4 +1,4 @@
-import { AlertsResponse, EventDetailResponse, EventRow, RankRow, SystemStatus } from "@/types";
+import { AlertsResponse, EventDetailResponse, EventRow, HotTrendSeries, RankRow, SystemStatus } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
@@ -12,8 +12,10 @@ export const api = {
   health: () => getJson<{ status: string }>("/health"),
   system: () => getJson<SystemStatus>("/api/system/status"),
   hotEvents: () => getJson<{ rows: RankRow[]; derived: boolean }>("/api/rankings/hot-events"),
+  hotTrend: (hours = 24, topK = 5) => getJson<{ rows: HotTrendSeries[]; derived: boolean; as_of: string }>(`/api/rankings/hot-trend?hours=${hours}&top_k=${topK}`),
   heatRisers: () => getJson<{ rows: RankRow[]; derived: boolean; fallback: boolean }>("/api/rankings/heat-risers"),
   priceMovers: () => getJson<{ rows: RankRow[]; derived: boolean }>("/api/rankings/price-movers"),
+  arbitrageSignals: (limit = 50) => getJson<{ rows: RankRow[]; derived: boolean; as_of: string; method_version: string }>(`/api/signals/arbitrage?limit=${limit}`),
   alerts: () => getJson<AlertsResponse>("/api/alerts"),
   events: () => getJson<{ rows: EventRow[] }>("/api/events"),
   eventDetail: (eventId: string) => getJson<EventDetailResponse>(`/api/events/${eventId}`)

@@ -9,6 +9,7 @@ from app.config import settings
 from app.services.aggregation_service import AggregationService
 from app.services.alert_service import AlertService
 from app.services.discovery_service import DiscoveryService
+from app.services.notification_service import NotificationService
 from app.services.ranking_service import RankingService
 from app.storage.db import get_session
 from app.storage.models import SourceHealth
@@ -29,6 +30,7 @@ class SchedulerService:
         self.aggregation = aggregation
         self.ranking = ranking
         self.alerts = AlertService(ranking=ranking)
+        self.notification = NotificationService(ranking=ranking)
         self.ws_listener = ws_listener
         self.scheduler = AsyncIOScheduler()
 
@@ -47,6 +49,7 @@ class SchedulerService:
         )
         self.scheduler.add_job(self._ws_health_tick, "interval", seconds=10)
         self.scheduler.add_job(self._alert_tick, "interval", seconds=60)
+        self.scheduler.add_job(self._summary_tick, "cron", minute=settings.summary_push_cron.split()[0], hour=settings.summary_push_cron.split()[1])
         self.scheduler.start()
 
     async def start_ws(self) -> None:
@@ -91,7 +94,13 @@ class SchedulerService:
     def _alert_tick(self) -> None:
         with get_session() as session:
             emitted = self.alerts.evaluate(session)
-        logger.info("Alert evaluation emitted=%s", emitted)
+            pushed = self.notification.push_instant_alerts(session)
+        logger.info("Alert evaluation emitted=%s pushed=%s", emitted, pushed)
+
+    def _summary_tick(self) -> None:
+        with get_session() as session:
+            pushed = self.notification.push_periodic_summary(session)
+        logger.info("Summary push sent=%s", pushed)
 
 
 async def launch_background(scheduler: SchedulerService) -> asyncio.Task:

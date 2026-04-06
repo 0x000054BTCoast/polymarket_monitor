@@ -11,6 +11,7 @@ from app.api.routes_events import router as events_router
 from app.api.routes_health import router as health_router
 from app.api.routes_rankings import router as rankings_router
 from app.api.routes_system import router as system_router
+from app.api.routes_signals import router as signals_router
 from app.config import settings
 from app.http.polymarket_clob import ClobClient
 from app.http.polymarket_gamma import GammaClient
@@ -63,3 +64,4 @@ app.include_router(system_router)
 app.include_router(events_router)
 app.include_router(rankings_router)
 app.include_router(alerts_router)
+app.include_router(signals_router)
