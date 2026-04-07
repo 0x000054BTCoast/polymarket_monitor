@@ -5,11 +5,49 @@ from datetime import datetime, timedelta, timezone
 
 from sqlmodel import Session, select
 
-from app.storage.models import Market, MinuteAggregation, SignalSnapshot, Snapshot
+from app.storage.models import Event, Market, MinuteAggregation, SignalSnapshot, Snapshot
 
 
 class SignalService:
     method_version = "v1"
+
+    def _market_context(self, session: Session, market_ids: set[str]) -> dict[str, dict[str, str | None]]:
+        if not market_ids:
+            return {}
+        rows = session.exec(
+            select(Market, Event)
+            .join(Event, Event.id == Market.event_id, isouter=True)
+            .where(Market.id.in_(market_ids))
+        ).all()
+        mapping: dict[str, dict[str, str | None]] = {}
+        for market, event in rows:
+            mapping[market.id] = {
+                "market_question": market.question,
+                "event_title": event.title if event else None,
+                "event_id": market.event_id,
+            }
+        return mapping
+
+    def _attach_market_context(self, session: Session, rows: list[dict]) -> list[dict]:
+        market_ids = {
+            str(market_id)
+            for row in rows
+            for market_id in [row.get("market_id"), row.get("related_market_id")]
+            if market_id
+        }
+        context = self._market_context(session, market_ids)
+        for row in rows:
+            market_id = row.get("market_id")
+            related_market_id = row.get("related_market_id")
+            info = context.get(str(market_id)) if market_id else None
+            related_info = context.get(str(related_market_id)) if related_market_id else None
+
+            row["market_question"] = info.get("market_question") if info else None
+            row["related_market_question"] = related_info.get("market_question") if related_info else None
+            row["event_title"] = info.get("event_title") if info else None
+            if info and not row.get("event_id"):
+                row["event_id"] = info.get("event_id")
+        return rows
 
     def arbitrage_rows(self, session: Session, limit: int = 50) -> list[dict]:
         markets = session.exec(select(Market).where(Market.active == True, Market.closed == False)).all()  # noqa: E712
@@ -26,7 +64,7 @@ class SignalService:
             rows.extend(self._cross_market_logic_gap(event_id, mks, latest_snaps, latest_minute))
 
         rows.sort(key=lambda x: x.get("score", 0), reverse=True)
-        return rows[:limit]
+        return self._attach_market_context(session, rows[:limit])
 
     def snapshot(self, session: Session, limit: int = 50) -> dict:
         rows = self.arbitrage_rows(session, limit=limit)
