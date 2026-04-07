@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     flush_aggregation_seconds: int = 15
     cleanup_check_seconds: int = 3600
     websocket_stale_seconds: int = 45
+    websocket_startup_grace_seconds: int = 90
+    websocket_alert_cooldown_seconds: int = 300
     data_retention_hours: int = 24
 
     rolling_baseline_minutes: int = 5
