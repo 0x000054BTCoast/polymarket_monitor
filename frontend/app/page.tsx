@@ -50,6 +50,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [statusFailed, setStatusFailed] = useState(false);
   const [hotFailed, setHotFailed] = useState(false);
+  const [officialHotFailed, setOfficialHotFailed] = useState(false);
   const [hotTrendFailed, setHotTrendFailed] = useState(false);
   const [heatFailed, setHeatFailed] = useState(false);
   const [moversFailed, setMoversFailed] = useState(false);
@@ -57,6 +58,8 @@ export default function DashboardPage() {
   const [signalsFailed, setSignalsFailed] = useState(false);
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [hot, setHot] = useState<RankRow[]>([]);
+  const [officialHot, setOfficialHot] = useState<RankRow[]>([]);
+  const [hotMode, setHotMode] = useState<"derived" | "official">("derived");
   const [hotTrend, setHotTrend] = useState<HotTrendSeries[]>([]);
   const [heat, setHeat] = useState<RankRow[]>([]);
   const [movers, setMovers] = useState<RankRow[]>([]);
@@ -89,13 +92,14 @@ export default function DashboardPage() {
     const failures: string[] = [];
     if (statusFailed) failures.push("/api/system/status");
     if (hotFailed) failures.push("/api/rankings/hot-events");
+    if (officialHotFailed) failures.push("/api/rankings/trending-official");
     if (hotTrendFailed) failures.push("/api/rankings/hot-trend");
     if (heatFailed) failures.push("/api/rankings/heat-risers");
     if (moversFailed) failures.push("/api/rankings/price-movers");
     if (alertsFailed) failures.push("/api/alerts");
     if (signalsFailed) failures.push("/api/signals/arbitrage");
     return failures;
-  }, [statusFailed, hotFailed, hotTrendFailed, heatFailed, moversFailed, alertsFailed, signalsFailed]);
+  }, [statusFailed, hotFailed, officialHotFailed, hotTrendFailed, heatFailed, moversFailed, alertsFailed, signalsFailed]);
 
   const degraded = failedEndpoints.length > 0;
 
@@ -104,9 +108,10 @@ export default function DashboardPage() {
 
     const load = async () => {
       try {
-        const [s, h, ht, hr, pm, a, arb] = await Promise.allSettled([
+        const [s, h, ho, ht, hr, pm, a, arb] = await Promise.allSettled([
           api.system(),
           api.hotEvents(topN),
+          api.trendingOfficial(topN),
           api.hotTrend(selectedWindow.hours, topK),
           api.heatRisers(topN),
           api.priceMovers(topN),
@@ -128,6 +133,14 @@ export default function DashboardPage() {
         } else {
           setHot(mockHot);
           setHotFailed(true);
+        }
+
+        if (ho.status === "fulfilled") {
+          setOfficialHot(ho.value.rows || []);
+          setOfficialHotFailed(false);
+        } else {
+          setOfficialHot([]);
+          setOfficialHotFailed(true);
         }
 
         if (ht.status === "fulfilled") {
@@ -178,6 +191,7 @@ export default function DashboardPage() {
       } catch {
         setStatus(mockStatus);
         setHot(mockHot);
+        setOfficialHot([]);
         setHotTrend([]);
         setHeat(mockHeat);
         setMovers(mockMovers);
@@ -188,6 +202,7 @@ export default function DashboardPage() {
         setArbitrageDisclaimer(mockArbitragePayload.disclaimer);
         setStatusFailed(true);
         setHotFailed(true);
+        setOfficialHotFailed(true);
         setHotTrendFailed(true);
         setHeatFailed(true);
         setMoversFailed(true);
@@ -217,6 +232,14 @@ export default function DashboardPage() {
       );
     });
   }, [hot, searchQuery, category]);
+
+  const filteredOfficialHot = useMemo(() => {
+    return officialHot.filter((r) => {
+      const title = String(r.title || "").toLowerCase();
+      const rowCategory = String(r.category || "");
+      return title.includes(searchQuery.toLowerCase()) && (!category || rowCategory === category);
+    });
+  }, [officialHot, searchQuery, category]);
 
   const openDetailFromRow = async (row: RankRow) => {
     const eventId = String(row.event_id || "");
@@ -454,7 +477,13 @@ export default function DashboardPage() {
 
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-6 items-start">
           <div className="space-y-6">
-            <HotEventsTable rows={filteredHot} onRowClick={openDetailFromRow} />
+            <HotEventsTable
+              derivedRows={filteredHot}
+              officialRows={filteredOfficialHot}
+              mode={hotMode}
+              onModeChange={setHotMode}
+              onRowClick={openDetailFromRow}
+            />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <HeatRisersTable rows={heat} />

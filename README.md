@@ -55,6 +55,7 @@ No trading, order placement, wallet auth, or private endpoints are implemented.
 - `GET /api/events`
 - `GET /api/events/{event_id}`
 - `GET /api/rankings/hot-events`
+- `GET /api/rankings/trending-official`
 - `GET /api/rankings/heat-risers`
 - `GET /api/rankings/price-movers`
 - `GET /api/rankings/disagreement`
@@ -105,6 +106,21 @@ Prioritizes liquid markets with outcome price near 0.5.
 ### New Entrants (DERIVED)
 
 Events entering hot top-N with positive score acceleration.
+
+## 口径差异说明（Derived vs Official Trending）
+
+当前面板支持两种 Hot 榜单口径：
+
+- **Derived Hot**：本项目本地按公式计算（见上文 `Hot Events (DERIVED)`），并由本地调度周期刷新。
+- **Official Trending**：基于官方公开接口返回字段构造，优先使用官方可用的 `trendingRank / trendingScore` 等字段；若不同部署字段不完整，则回退到公开字段映射（如 `rank`、`score`、`volume24hr`）并在接口返回里附映射说明。
+
+请注意以下差异：
+
+1. **公式不同**：Derived 使用固定权重归一化；Official 依赖官方返回排序/分值字段。
+2. **刷新周期不同**：Derived 跟随本地采集与调度；Official 跟随官方接口更新节奏。
+3. **去重与分页策略不同**：Derived 由本地事件落库与去重逻辑控制；Official 受官方分页和返回形态影响。
+
+因此，两者**不应做逐条一一对比**，建议用于不同分析场景下的互补观察。
 
 ## Local setup and run instructions
 

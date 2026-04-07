@@ -1,16 +1,23 @@
 from fastapi import APIRouter
 
+from app.http.official_trending import OfficialTrendingClient
 from app.services.ranking_service import RankingService
 from app.storage.db import get_session
 
 router = APIRouter(prefix="/api/rankings", tags=["rankings"])
 service = RankingService()
+official_client = OfficialTrendingClient()
 
 
 @router.get("/hot-events")
 def hot_events(limit: int = 100) -> dict:
     with get_session() as session:
-        return {"rows": service.hot_events(session, limit=limit), "derived": True}
+        return {"rows": service.derived_hot_events(session, limit=limit), "derived": True}
+
+
+@router.get("/trending-official")
+def trending_official(limit: int = 100) -> dict:
+    return official_client.fetch(limit=limit)
 
 
 @router.get("/heat-risers")
