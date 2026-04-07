@@ -11,10 +11,10 @@ async function getJson<T>(path: string): Promise<T> {
 export const api = {
   health: () => getJson<{ status: string }>("/health"),
   system: () => getJson<SystemStatus>("/api/system/status"),
-  hotEvents: () => getJson<{ rows: RankRow[]; derived: boolean }>("/api/rankings/hot-events"),
+  hotEvents: (limit = 100) => getJson<{ rows: RankRow[]; derived: boolean }>(`/api/rankings/hot-events?limit=${limit}`),
   hotTrend: (hours = 24, topK = 5) => getJson<{ rows: HotTrendSeries[]; derived: boolean; as_of: string }>(`/api/rankings/hot-trend?hours=${hours}&top_k=${topK}`),
-  heatRisers: () => getJson<{ rows: RankRow[]; derived: boolean; fallback: boolean }>("/api/rankings/heat-risers"),
-  priceMovers: () => getJson<{ rows: RankRow[]; derived: boolean }>("/api/rankings/price-movers"),
+  heatRisers: (limit = 100) => getJson<{ rows: RankRow[]; derived: boolean; fallback: boolean }>(`/api/rankings/heat-risers?limit=${limit}`),
+  priceMovers: (limit = 100) => getJson<{ rows: RankRow[]; derived: boolean }>(`/api/rankings/price-movers?limit=${limit}`),
   arbitrageSignals: (limit = 50) => getJson<{ rows: ArbitrageSignalRow[]; derived: boolean; as_of: string; method_version: string; disclaimer: string }>(`/api/signals/arbitrage?limit=${limit}`),
   alerts: () => getJson<AlertsResponse>("/api/alerts"),
   events: () => getJson<{ rows: EventRow[] }>("/api/events"),

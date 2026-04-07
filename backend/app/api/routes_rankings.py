@@ -8,13 +8,13 @@ service = RankingService()
 
 
 @router.get("/hot-events")
-def hot_events(limit: int = 20) -> dict:
+def hot_events(limit: int = 100) -> dict:
     with get_session() as session:
         return {"rows": service.hot_events(session, limit=limit), "derived": True}
 
 
 @router.get("/heat-risers")
-def heat_risers(limit: int = 20) -> dict:
+def heat_risers(limit: int = 100) -> dict:
     with get_session() as session:
         rows = service.heat_risers(session, limit=limit)
         fallback = any(r.get("fallback") for r in rows)
@@ -22,13 +22,13 @@ def heat_risers(limit: int = 20) -> dict:
 
 
 @router.get("/price-movers")
-def price_movers(limit: int = 20) -> dict:
+def price_movers(limit: int = 100) -> dict:
     with get_session() as session:
         return {"rows": service.price_movers(session, limit=limit), "derived": True}
 
 
 @router.get("/disagreement")
-def disagreement(limit: int = 20) -> dict:
+def disagreement(limit: int = 100) -> dict:
     with get_session() as session:
         return {"rows": service.disagreement(session, limit=limit), "derived": True}
 
