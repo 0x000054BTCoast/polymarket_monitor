@@ -31,6 +31,35 @@ def _safe_zscore(values: list[float], value: float) -> float:
 
 
 class RankingService:
+    def _market_context(self, session: Session, market_ids: set[str]) -> dict[str, dict[str, str | None]]:
+        if not market_ids:
+            return {}
+        rows = session.exec(
+            select(Market, Event)
+            .join(Event, Event.id == Market.event_id, isouter=True)
+            .where(Market.id.in_(market_ids))
+        ).all()
+        mapping: dict[str, dict[str, str | None]] = {}
+        for market, event in rows:
+            mapping[market.id] = {
+                "market_question": market.question,
+                "event_title": event.title if event else None,
+                "event_id": market.event_id,
+            }
+        return mapping
+
+    def _attach_market_context(self, session: Session, rows: list[dict]) -> list[dict]:
+        market_ids = {str(r.get("market_id")) for r in rows if r.get("market_id")}
+        context = self._market_context(session, market_ids)
+        for row in rows:
+            market_id = row.get("market_id")
+            info = context.get(str(market_id)) if market_id else None
+            row["market_question"] = info.get("market_question") if info else None
+            row["event_title"] = info.get("event_title") if info else None
+            if info and not row.get("event_id"):
+                row["event_id"] = info.get("event_id")
+        return rows
+
     def hot_events(self, session: Session, limit: int = 20) -> list[dict]:
         events = session.exec(select(Event).where(Event.active == True, Event.closed == False)).all()  # noqa: E712
         vols = [e.volume_24hr for e in events]
@@ -121,7 +150,7 @@ class RankingService:
             )
 
         out.sort(key=lambda x: x["heat_rise"], reverse=True)
-        return out[:limit]
+        return self._attach_market_context(session, out[:limit])
 
     def _fallback_heat(self, session: Session, limit: int) -> list[dict]:
         snaps = session.exec(select(Snapshot).order_by(Snapshot.ts.desc()).limit(400)).all()
@@ -141,7 +170,7 @@ class RankingService:
             )
             out.append({"market_id": market_id, "heat_rise": round(score, 6), "fallback": True, "derived": True})
         out.sort(key=lambda x: x["heat_rise"], reverse=True)
-        return out[:limit]
+        return self._attach_market_context(session, out[:limit])
 
 
     def hot_trend(self, session: Session, hours: int = 24, top_k: int = 5) -> dict:
@@ -178,7 +207,7 @@ class RankingService:
             ret_5m = abs((prices[-1] - prices[0]) / prices[0]) if prices[0] else 0
             movers.append({"market_id": market_id, "abs_move_1m": ret_1m, "abs_move_5m": ret_5m, "derived": True})
         movers.sort(key=lambda x: (x["abs_move_1m"], x["abs_move_5m"]), reverse=True)
-        return movers[:limit]
+        return self._attach_market_context(session, movers[:limit])
 
     def disagreement(self, session: Session, limit: int = 20) -> list[dict]:
         markets = session.exec(select(Market).where(Market.active == True, Market.closed == False)).all()  # noqa: E712
@@ -197,7 +226,7 @@ class RankingService:
                 }
             )
         out.sort(key=lambda x: x["disagreement_score"], reverse=True)
-        return out[:limit]
+        return self._attach_market_context(session, out[:limit])
 
     def new_entrants(self, session: Session, top_n: int = 10) -> list[dict]:
         current = self.hot_events(session, limit=top_n)

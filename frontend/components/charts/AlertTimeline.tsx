@@ -10,6 +10,9 @@ interface AlertTimelineProps {
 }
 
 export default function AlertTimeline({ alerts, filter, maxItems = 30 }: AlertTimelineProps) {
+  const shortMarketId = (marketId?: string) => (marketId ? `${marketId.slice(0, 8)}...` : "-");
+  const marketDisplay = (alert: NonNullable<AlertsResponse["rows"]>[number]) =>
+    alert.market_question ?? alert.event_title ?? shortMarketId(alert.market_id);
   const rows = (alerts?.rows || [])
     .filter((r) => !filter || r.severity === filter)
     .slice(0, maxItems);
@@ -82,6 +85,14 @@ export default function AlertTimeline({ alerts, filter, maxItems = 30 }: AlertTi
               <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
                 {alert.message}
               </p>
+              {alert.market_id && (
+                <div className="mb-2">
+                  <p className="text-sm font-medium truncate">{marketDisplay(alert)}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {alert.event_title ?? "-"} · {shortMarketId(alert.market_id)}
+                  </p>
+                </div>
+              )}
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
                 <span className="font-mono">{formatTime(alert.created_at)}</span>
                 {alert.event_id && (
@@ -90,7 +101,7 @@ export default function AlertTimeline({ alerts, filter, maxItems = 30 }: AlertTi
                   </span>
                 )}
                 {alert.market_id && (
-                  <span className="font-mono">Market: {alert.market_id.slice(0, 8)}</span>
+                  <span className="font-mono">Market: {shortMarketId(alert.market_id)}</span>
                 )}
               </div>
             </div>

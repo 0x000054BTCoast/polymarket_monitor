@@ -9,11 +9,16 @@ interface CorrelationViewProps {
 }
 
 export default function CorrelationView({ movers, heat, maxItems = 6 }: CorrelationViewProps) {
+  const shortMarketId = (marketId?: string) => (marketId ? `${marketId.slice(0, 8)}...` : "-");
+  const marketDisplay = (row: RankRow) =>
+    row.market_question ?? row.event_title ?? shortMarketId(row.market_id);
   const combined = movers.slice(0, maxItems).map((m) => {
     const marketId = String(m.market_id || "");
     const heatRow = heat.find((h) => String(h.market_id) === marketId);
     return {
       marketId,
+      market_question: m.market_question || heatRow?.market_question,
+      event_title: m.event_title || heatRow?.event_title,
       move: Math.abs(Number(m.abs_move_1m || 0)),
       heat: Number(heatRow?.heat_rise || 0),
     };
@@ -40,7 +45,14 @@ export default function CorrelationView({ movers, heat, maxItems = 6 }: Correlat
           return (
             <div key={item.marketId} className="bg-muted/30 rounded-lg p-3">
               <p className="text-xs text-muted-foreground font-mono truncate mb-3">
-                {item.marketId.slice(0, 10)}...
+                {marketDisplay({
+                  market_id: item.marketId,
+                  market_question: item.market_question,
+                  event_title: item.event_title,
+                })}
+              </p>
+              <p className="text-[10px] text-muted-foreground truncate mb-2">
+                {item.event_title ?? "-"} · {shortMarketId(item.marketId)}
               </p>
               <div className="flex items-end gap-2 h-16">
                 <div className="flex-1 flex flex-col items-center">

@@ -26,7 +26,16 @@ export type EventRow = {
   featured?: boolean;
 };
 
-export type RankRow = Record<string, unknown>;
+export type RankRow = Record<string, unknown> & {
+  market_id?: string;
+  event_id?: string;
+  market_question?: string | null;
+  event_title?: string | null;
+  heat_rise?: number;
+  abs_move_1m?: number;
+  abs_move_5m?: number;
+  disagreement_score?: number;
+};
 
 export type HotTrendSeries = {
   event_id: string;
@@ -43,6 +52,8 @@ export type AlertsResponse = {
     created_at: string;
     market_id?: string;
     event_id?: string;
+    market_question?: string | null;
+    event_title?: string | null;
   }>;
 };
 

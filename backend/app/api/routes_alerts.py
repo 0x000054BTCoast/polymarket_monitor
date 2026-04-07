@@ -32,6 +32,8 @@ def list_alerts(limit: int = 100) -> dict:
                     "message": a.message,
                     "event_id": a.event_id,
                     "market_id": a.market_id,
+                    "market_question": (a.details or {}).get("market_question"),
+                    "event_title": (a.details or {}).get("event_title"),
                     "metadata": a.details,
                     "created_at": a.created_at,
                 }
