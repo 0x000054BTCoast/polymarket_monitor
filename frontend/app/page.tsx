@@ -20,7 +20,14 @@ import MoveHeatScatter from "@/components/charts/MoveHeatScatter";
 import TrendChart from "@/components/charts/TrendChart";
 import Badge from "@/components/ui/Badge";
 import { api } from "@/lib/api";
-import { mockAlerts, mockHeat, mockHot, mockMovers, mockStatus } from "@/lib/mock";
+import {
+  mockAlerts,
+  mockArbitragePayload,
+  mockHeat,
+  mockHot,
+  mockMovers,
+  mockStatus,
+} from "@/lib/mock";
 import {
   AlertsResponse,
   ArbitrageSignalRow,
@@ -41,7 +48,13 @@ const WINDOW_OPTIONS: Array<{ key: TimeWindow; label: string; hours: number }> =
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
-  const [degraded, setDegraded] = useState(false);
+  const [statusFailed, setStatusFailed] = useState(false);
+  const [hotFailed, setHotFailed] = useState(false);
+  const [hotTrendFailed, setHotTrendFailed] = useState(false);
+  const [heatFailed, setHeatFailed] = useState(false);
+  const [moversFailed, setMoversFailed] = useState(false);
+  const [alertsFailed, setAlertsFailed] = useState(false);
+  const [signalsFailed, setSignalsFailed] = useState(false);
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [hot, setHot] = useState<RankRow[]>([]);
   const [hotTrend, setHotTrend] = useState<HotTrendSeries[]>([]);
@@ -72,12 +85,26 @@ export default function DashboardPage() {
     [timeWindow]
   );
 
+  const failedEndpoints = useMemo(() => {
+    const failures: string[] = [];
+    if (statusFailed) failures.push("/api/system/status");
+    if (hotFailed) failures.push("/api/rankings/hot-events");
+    if (hotTrendFailed) failures.push("/api/rankings/hot-trend");
+    if (heatFailed) failures.push("/api/rankings/heat-risers");
+    if (moversFailed) failures.push("/api/rankings/price-movers");
+    if (alertsFailed) failures.push("/api/alerts");
+    if (signalsFailed) failures.push("/api/signals/arbitrage");
+    return failures;
+  }, [statusFailed, hotFailed, hotTrendFailed, heatFailed, moversFailed, alertsFailed, signalsFailed]);
+
+  const degraded = failedEndpoints.length > 0;
+
   useEffect(() => {
     let timeout: NodeJS.Timeout;
 
     const load = async () => {
       try {
-        const [s, h, ht, hr, pm, a, arb] = await Promise.all([
+        const [s, h, ht, hr, pm, a, arb] = await Promise.allSettled([
           api.system(),
           api.hotEvents(topN),
           api.hotTrend(selectedWindow.hours, topK),
@@ -86,29 +113,86 @@ export default function DashboardPage() {
           api.alerts(),
           api.arbitrageSignals(40),
         ]);
-        setStatus(s);
-        setHot(h.rows || []);
-        setHotTrend(ht.rows || []);
-        setHeat(hr.rows || []);
-        setMovers(pm.rows || []);
-        setAlerts(a);
-        setArbitrage(arb.rows || []);
-        setArbitrageAsOf(arb.as_of || "");
-        setArbitrageMethod(arb.method_version || "");
-        setArbitrageDisclaimer(arb.disclaimer || "");
-        setDegraded(false);
+
+        if (s.status === "fulfilled") {
+          setStatus(s.value);
+          setStatusFailed(false);
+        } else {
+          setStatus(mockStatus);
+          setStatusFailed(true);
+        }
+
+        if (h.status === "fulfilled") {
+          setHot(h.value.rows || []);
+          setHotFailed(false);
+        } else {
+          setHot(mockHot);
+          setHotFailed(true);
+        }
+
+        if (ht.status === "fulfilled") {
+          setHotTrend(ht.value.rows || []);
+          setHotTrendFailed(false);
+        } else {
+          setHotTrend([]);
+          setHotTrendFailed(true);
+        }
+
+        if (hr.status === "fulfilled") {
+          setHeat(hr.value.rows || []);
+          setHeatFailed(false);
+        } else {
+          setHeat(mockHeat);
+          setHeatFailed(true);
+        }
+
+        if (pm.status === "fulfilled") {
+          setMovers(pm.value.rows || []);
+          setMoversFailed(false);
+        } else {
+          setMovers(mockMovers);
+          setMoversFailed(true);
+        }
+
+        if (a.status === "fulfilled") {
+          setAlerts(a.value);
+          setAlertsFailed(false);
+        } else {
+          setAlerts(mockAlerts);
+          setAlertsFailed(true);
+        }
+
+        if (arb.status === "fulfilled") {
+          setArbitrage(arb.value.rows || []);
+          setArbitrageAsOf(arb.value.as_of || "");
+          setArbitrageMethod(arb.value.method_version || "");
+          setArbitrageDisclaimer(arb.value.disclaimer || "");
+          setSignalsFailed(false);
+        } else {
+          setArbitrage(mockArbitragePayload.rows);
+          setArbitrageAsOf(mockArbitragePayload.as_of);
+          setArbitrageMethod(mockArbitragePayload.method_version);
+          setArbitrageDisclaimer(mockArbitragePayload.disclaimer);
+          setSignalsFailed(true);
+        }
       } catch {
-        setDegraded(true);
         setStatus(mockStatus);
         setHot(mockHot);
         setHotTrend([]);
         setHeat(mockHeat);
         setMovers(mockMovers);
         setAlerts(mockAlerts);
-        setArbitrage([]);
-        setArbitrageAsOf("");
-        setArbitrageMethod("");
-        setArbitrageDisclaimer("DERIVED 信号，非投资建议，仅供研究。");
+        setArbitrage(mockArbitragePayload.rows);
+        setArbitrageAsOf(mockArbitragePayload.as_of);
+        setArbitrageMethod(mockArbitragePayload.method_version);
+        setArbitrageDisclaimer(mockArbitragePayload.disclaimer);
+        setStatusFailed(true);
+        setHotFailed(true);
+        setHotTrendFailed(true);
+        setHeatFailed(true);
+        setMoversFailed(true);
+        setAlertsFailed(true);
+        setSignalsFailed(true);
       } finally {
         setLoading(false);
       }
@@ -190,7 +274,7 @@ export default function DashboardPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {degraded && <Badge variant="warning">Mock Mode</Badge>}
+            {degraded && <Badge variant="warning">Partial Degradation</Badge>}
             {loading && <Badge variant="muted">Loading...</Badge>}
           </div>
         </div>
@@ -212,9 +296,9 @@ export default function DashboardPage() {
                 />
               </svg>
               <div>
-                <p className="text-sm font-medium text-warning">Demo Mode Active</p>
+                <p className="text-sm font-medium text-warning">Partial Degradation</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Backend is unavailable. Displaying mock data for demonstration purposes.
+                  Failed endpoints: {failedEndpoints.join(", ")}. Only failed modules are using mock fallbacks.
                 </p>
               </div>
             </div>
@@ -283,6 +367,7 @@ export default function DashboardPage() {
               <div className="xl:col-span-2">
                 <div className="mb-3 flex items-center justify-between">
                   <h3 className="text-sm font-medium">Hot Score Trend</h3>
+                  {hotTrendFailed && <Badge variant="warning" size="sm">warning</Badge>}
                   <Badge variant="muted" size="sm">{selectedWindow.label}</Badge>
                 </div>
                 <div className="chart-container">
@@ -292,6 +377,7 @@ export default function DashboardPage() {
               <div>
                 <div className="mb-3 flex items-center justify-between">
                   <h3 className="text-sm font-medium">Heat Distribution</h3>
+                  {heatFailed && <Badge variant="warning" size="sm">warning</Badge>}
                   <Badge variant="muted" size="sm">z-score</Badge>
                 </div>
                 <div className="chart-container">
@@ -303,6 +389,7 @@ export default function DashboardPage() {
             <div>
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-sm font-medium">Price-Heat Correlation</h3>
+                {moversFailed && <Badge variant="warning" size="sm">warning</Badge>}
                 <Badge variant="muted" size="sm">Top 6 Movers</Badge>
               </div>
               <div className="chart-container">
@@ -343,6 +430,7 @@ export default function DashboardPage() {
             <div>
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-sm font-medium">Alert Timeline</h3>
+                {alertsFailed && <Badge variant="warning" size="sm">warning</Badge>}
                 <select
                   value={timelineSeverity}
                   onChange={(e) => setTimelineSeverity(e.target.value)}
@@ -381,6 +469,7 @@ export default function DashboardPage() {
           <div className="card p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
             <div>
               <h2 className="font-semibold">Arbitrage Strategy Zone</h2>
+              {signalsFailed && <Badge variant="warning" size="sm">warning</Badge>}
               <p className="text-xs text-muted-foreground mt-0.5">
                 按 signal_type / confidence / risk 过滤策略建议动作
               </p>

@@ -173,7 +173,7 @@ class RankingService:
         return self._attach_market_context(session, out[:limit])
 
 
-    def hot_trend(self, session: Session, hours: int = 24, top_k: int = 5) -> dict:
+    def hot_trend(self, session: Session, hours: float = 24, top_k: int = 5) -> dict:
         since = datetime.now(timezone.utc) - timedelta(hours=hours)
         snaps = session.exec(
             select(RankingSnapshot)

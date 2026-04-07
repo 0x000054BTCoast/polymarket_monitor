@@ -40,6 +40,6 @@ def new_entrants(top_n: int = 10) -> dict:
 
 
 @router.get("/hot-trend")
-def hot_trend(hours: int = 24, top_k: int = 5) -> dict:
+def hot_trend(hours: float = 24, top_k: int = 5) -> dict:
     with get_session() as session:
         return service.hot_trend(session, hours=hours, top_k=top_k)

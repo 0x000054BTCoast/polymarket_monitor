@@ -1,4 +1,4 @@
-import { AlertsResponse, EventRow, RankRow, SystemStatus } from "@/types";
+import { AlertsResponse, ArbitrageSignalRow, EventRow, RankRow, SystemStatus } from "@/types";
 
 export const mockStatus: SystemStatus = {
   tracked_events: 12,
@@ -46,3 +46,17 @@ export const mockEvents: EventRow[] = [
   { id: "demo-1", title: "MOCK/DEMO Event A", category: "Politics", featured: true },
   { id: "demo-2", title: "MOCK/DEMO Event B", category: "Sports", featured: false }
 ];
+
+export const mockArbitragePayload: {
+  rows: ArbitrageSignalRow[];
+  derived: boolean;
+  as_of: string;
+  method_version: string;
+  disclaimer: string;
+} = {
+  rows: [],
+  derived: true,
+  as_of: "",
+  method_version: "mock-fallback",
+  disclaimer: "DERIVED 信号，非投资建议，仅供研究。",
+};
