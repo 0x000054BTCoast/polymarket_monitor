@@ -16,6 +16,8 @@ def system_status() -> dict:
         markets = session.exec(select(Market)).all()
         health = session.exec(select(SourceHealth)).all()
         ckpt = session.get(Checkpoint, "last_discovery_sync")
+        tracked_asset_ckpt = session.get(Checkpoint, "market_ws:tracked_asset_count")
+        last_subscribe_ckpt = session.get(Checkpoint, "market_ws:last_subscribe_at")
 
     websocket_status = next((h.status for h in health if h.source == "market_ws"), "unknown")
     category_counts: dict[str, int] = {}
@@ -43,6 +45,8 @@ def system_status() -> dict:
                 "last_ok_at": h.last_ok_at,
                 "last_error_at": h.last_error_at,
                 "last_error_message": h.last_error_message,
+                "tracked_asset_count": int(tracked_asset_ckpt.value) if h.source == "market_ws" and tracked_asset_ckpt else None,
+                "last_subscribe_at": last_subscribe_ckpt.value if h.source == "market_ws" and last_subscribe_ckpt else None,
             }
             for h in health
         ],

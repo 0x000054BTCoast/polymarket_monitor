@@ -8,12 +8,24 @@ interface SourceHealthProps {
 export default function SourceHealth({ status }: SourceHealthProps) {
   const sources = status?.source_health || [];
 
+  const normalizeStatus = (s: string) => s.toLowerCase();
+
   const getStatusVariant = (s: string): "success" | "warning" | "destructive" | "muted" => {
-    const lower = s.toLowerCase();
+    const lower = normalizeStatus(s);
     if (lower === "ok" || lower === "connected" || lower === "healthy") return "success";
+    if (lower === "starting" || lower === "idle_no_assets") return "warning";
     if (lower === "degraded" || lower === "slow") return "warning";
-    if (lower === "error" || lower === "down" || lower === "disconnected") return "destructive";
+    if (lower === "error" || lower === "down" || lower === "disconnected" || lower === "stale") return "destructive";
     return "muted";
+  };
+
+  const statusLabel = (s: string) => {
+    const lower = normalizeStatus(s);
+    if (lower === "starting") return "Starting";
+    if (lower === "stale") return "Stale";
+    if (lower === "disconnected") return "Disconnected";
+    if (lower === "idle_no_assets") return "Idle (No Assets)";
+    return s;
   };
 
   const formatTime = (time: string | null | undefined) => {
@@ -46,7 +58,7 @@ export default function SourceHealth({ status }: SourceHealthProps) {
               <div className="flex items-center justify-between mb-1">
                 <span className="text-sm font-medium">{source.source}</span>
                 <Badge variant={getStatusVariant(source.status)} size="sm">
-                  {source.status}
+                  {statusLabel(source.status)}
                 </Badge>
               </div>
               {source.last_error_message && (
@@ -55,6 +67,12 @@ export default function SourceHealth({ status }: SourceHealthProps) {
                 </p>
               )}
               <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+                {typeof source.tracked_asset_count === "number" && (
+                  <span>Tracked Assets: {source.tracked_asset_count}</span>
+                )}
+                {source.last_subscribe_at && (
+                  <span>Last Subscribe: {formatTime(source.last_subscribe_at)}</span>
+                )}
                 {source.last_ok_at && (
                   <span>Last OK: {formatTime(source.last_ok_at)}</span>
                 )}
