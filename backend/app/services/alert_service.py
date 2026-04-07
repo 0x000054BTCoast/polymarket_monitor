@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from sqlmodel import Session, select
 
+from app.config import settings
 from app.services.ranking_service import RankingService
 from app.storage.models import AlertConfig, AlertRecord, Checkpoint, Event, Market, MinuteAggregation, SourceHealth
 
@@ -206,12 +207,29 @@ class AlertService:
         if cfg.ws_stale_enabled:
             ws_health = session.get(SourceHealth, "market_ws")
             if ws_health and ws_health.status in {"stale", "disconnected"}:
-                self.emit(
-                    session,
-                    alert_type="websocket_stale",
-                    severity="critical",
-                    message=f"Websocket health status is {ws_health.status}",
-                )
-                emitted += 1
+                ck = session.get(Checkpoint, "alerts:websocket_stale:last_emit")
+                now = datetime.now(timezone.utc)
+                should_emit = True
+                if ck:
+                    payload = json.loads(ck.value or "{}")
+                    last_status = payload.get("status")
+                    last_emitted_at = payload.get("ts")
+                    if last_status == ws_health.status and last_emitted_at:
+                        last_dt = datetime.fromisoformat(last_emitted_at)
+                        if (now - last_dt).total_seconds() < settings.websocket_alert_cooldown_seconds:
+                            should_emit = False
+                if should_emit:
+                    self.emit(
+                        session,
+                        alert_type="websocket_stale",
+                        severity="critical",
+                        message=f"Websocket health status is {ws_health.status}",
+                    )
+                    ck = ck or Checkpoint(key="alerts:websocket_stale:last_emit", value="{}")
+                    ck.value = json.dumps({"status": ws_health.status, "ts": now.isoformat()})
+                    ck.updated_at = now
+                    session.add(ck)
+                    session.commit()
+                    emitted += 1
 
         return emitted

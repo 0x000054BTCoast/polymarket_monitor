@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -33,8 +34,10 @@ class SchedulerService:
         self.notification = NotificationService(ranking=ranking)
         self.ws_listener = ws_listener
         self.scheduler = AsyncIOScheduler()
+        self._started_at = datetime.now(timezone.utc)
 
     def start(self) -> None:
+        self._started_at = datetime.now(timezone.utc)
         self.scheduler.add_job(self._discovery_tick, "interval", seconds=settings.discovery_poll_seconds)
         self.scheduler.add_job(self._snapshot_tick, "interval", seconds=settings.snapshot_poll_seconds)
         self.scheduler.add_job(
@@ -82,12 +85,22 @@ class SchedulerService:
                     deleted["alerts"])
 
     def _ws_health_tick(self) -> None:
+        now = datetime.now(timezone.utc)
         stale = self.ws_listener.is_stale()
+        in_startup_grace = (now - self._started_at).total_seconds() < settings.websocket_startup_grace_seconds
+        if stale and in_startup_grace:
+            status = "starting"
+        else:
+            status = "stale" if stale else ("ok" if self.ws_listener.state.connected else "disconnected")
         with get_session() as session:
             row = session.get(SourceHealth, "market_ws") or SourceHealth(source="market_ws")
-            row.status = "stale" if stale else ("ok" if self.ws_listener.state.connected else "disconnected")
+            row.status = status
             row.last_error_message = self.ws_listener.state.last_error
-            row.updated_at = self.ws_listener.state.last_message_at or row.updated_at
+            row.updated_at = now
+            if status == "ok":
+                row.last_ok_at = now
+            elif status in {"stale", "disconnected"}:
+                row.last_error_at = now
             session.add(row)
             session.commit()
 

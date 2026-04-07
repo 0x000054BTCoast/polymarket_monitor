@@ -25,6 +25,7 @@ class MarketWebSocketListener:
     def __init__(self) -> None:
         self._tracked_assets: set[str] = set()
         self._running = False
+        self._unparsed_message_count = 0
         self.state = WsState()
         self._minute_buffers: dict[str, deque[dict]] = defaultdict(
             lambda: deque(maxlen=settings.max_ws_buffer_minutes * 60)
@@ -56,11 +57,13 @@ class MarketWebSocketListener:
             return
         async with websockets.connect(settings.market_ws_url, ping_interval=20, ping_timeout=20) as ws:
             self.state.connected = True
-            sub_msg = {
-                "type": "subscribe",
-                "channel": "market",
-                "assets_ids": sorted(self._tracked_assets),
-            }
+            sub_msg = self._build_subscribe_payload()
+            preview_asset_ids = sub_msg["asset_ids"][:5]
+            logger.info(
+                "WS subscribe request assets=%s preview_asset_ids=%s",
+                len(sub_msg["asset_ids"]),
+                preview_asset_ids,
+            )
             await ws.send(json.dumps(sub_msg))
 
             async for raw in ws:
@@ -68,18 +71,33 @@ class MarketWebSocketListener:
                 payload = json.loads(raw)
                 self._handle_message(payload)
 
+    def _build_subscribe_payload(self) -> dict:
+        return {
+            "type": "subscribe",
+            "channel": "market",
+            "asset_ids": sorted(self._tracked_assets),
+        }
+
     def _handle_message(self, payload: dict) -> None:
-        # TODO: Verify exact payload keys against production websocket samples.
         market = str(payload.get("market") or payload.get("asset_id") or "")
         if not market:
+            self._unparsed_message_count += 1
+            if self._unparsed_message_count <= 5 or self._unparsed_message_count % 100 == 0:
+                logger.warning(
+                    "WS message missing market/asset_id count=%s keys=%s payload_type=%s",
+                    self._unparsed_message_count,
+                    sorted(payload.keys()),
+                    payload.get("event_type") or payload.get("type"),
+                )
             return
+        event_type = payload.get("event_type") or payload.get("type")
         ts = datetime.now(timezone.utc)
         self._minute_buffers[market].append(
             {
                 "ts": ts,
                 "price": float(payload.get("price", 0) or 0),
                 "size": float(payload.get("size", 0) or 0),
-                "event_type": payload.get("event_type") or payload.get("type"),
+                "event_type": event_type,
             }
         )
 
