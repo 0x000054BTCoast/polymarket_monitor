@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import AlertsList from "@/components/AlertsList";
+import ArbitrageSignalsPanel from "@/components/ArbitrageSignalsPanel";
 import EventDrawer from "@/components/EventDrawer";
 import FilterBar from "@/components/FilterBar";
 import HeatRisersTable from "@/components/HeatRisersTable";
@@ -19,6 +20,7 @@ import { api } from "@/lib/api";
 import { mockAlerts, mockHeat, mockHot, mockMovers, mockStatus } from "@/lib/mock";
 import {
   AlertsResponse,
+  ArbitrageSignalRow,
   EventDetailResponse,
   HotTrendSeries,
   RankRow,
@@ -34,12 +36,19 @@ export default function DashboardPage() {
   const [heat, setHeat] = useState<RankRow[]>([]);
   const [movers, setMovers] = useState<RankRow[]>([]);
   const [alerts, setAlerts] = useState<AlertsResponse | null>(null);
+  const [arbitrage, setArbitrage] = useState<ArbitrageSignalRow[]>([]);
+  const [arbitrageAsOf, setArbitrageAsOf] = useState("");
+  const [arbitrageMethod, setArbitrageMethod] = useState("");
+  const [arbitrageDisclaimer, setArbitrageDisclaimer] = useState("");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [category, setCategory] = useState("");
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [topK, setTopK] = useState(5);
   const [timelineSeverity, setTimelineSeverity] = useState("");
+  const [signalTypeFilter, setSignalTypeFilter] = useState("");
+  const [confidenceFilter, setConfidenceFilter] = useState(0);
+  const [riskFilter, setRiskFilter] = useState("");
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detail, setDetail] = useState<EventDetailResponse | null>(null);
@@ -49,13 +58,14 @@ export default function DashboardPage() {
 
     const load = async () => {
       try {
-        const [s, h, ht, hr, pm, a] = await Promise.all([
+        const [s, h, ht, hr, pm, a, arb] = await Promise.all([
           api.system(),
           api.hotEvents(),
           api.hotTrend(24, topK),
           api.heatRisers(),
           api.priceMovers(),
           api.alerts(),
+          api.arbitrageSignals(40),
         ]);
         setStatus(s);
         setHot(h.rows || []);
@@ -63,6 +73,10 @@ export default function DashboardPage() {
         setHeat(hr.rows || []);
         setMovers(pm.rows || []);
         setAlerts(a);
+        setArbitrage(arb.rows || []);
+        setArbitrageAsOf(arb.as_of || "");
+        setArbitrageMethod(arb.method_version || "");
+        setArbitrageDisclaimer(arb.disclaimer || "");
         setDegraded(false);
       } catch {
         setDegraded(true);
@@ -72,6 +86,10 @@ export default function DashboardPage() {
         setHeat(mockHeat);
         setMovers(mockMovers);
         setAlerts(mockAlerts);
+        setArbitrage([]);
+        setArbitrageAsOf("");
+        setArbitrageMethod("");
+        setArbitrageDisclaimer("DERIVED 信号，非投资建议，仅供研究。");
       } finally {
         setLoading(false);
       }
@@ -119,6 +137,28 @@ export default function DashboardPage() {
       });
     }
   };
+
+  const signalTypeOptions = useMemo(
+    () => Array.from(new Set(arbitrage.map((r) => r.signal_type))).filter(Boolean),
+    [arbitrage]
+  );
+
+  const filteredArbitrage = useMemo(() => {
+    return arbitrage.filter((row) => {
+      const confidence = Number(row.risk_flags?.confidence || 0);
+      const risks = [
+        row.risk_flags?.data_freshness_risk,
+        row.risk_flags?.liquidity_risk,
+        row.risk_flags?.slippage_risk,
+      ];
+      const riskMatch = !riskFilter || risks.includes(riskFilter as "low" | "medium" | "high");
+      return (
+        (!signalTypeFilter || row.signal_type === signalTypeFilter) &&
+        confidence >= confidenceFilter &&
+        riskMatch
+      );
+    });
+  }, [arbitrage, signalTypeFilter, confidenceFilter, riskFilter]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -278,6 +318,45 @@ export default function DashboardPage() {
             <AlertsList alerts={alerts} maxItems={15} />
             <SourceHealth status={status} />
           </div>
+        </div>
+
+        {/* Arbitrage Signals */}
+        <div className="space-y-3">
+          <div className="card p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+            <div>
+              <h2 className="font-semibold">Arbitrage Strategy Zone</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                按 signal_type / confidence / risk 过滤策略建议动作
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full lg:w-auto">
+              <select value={signalTypeFilter} onChange={(e) => setSignalTypeFilter(e.target.value)} className="select text-xs h-8">
+                <option value="">All signal_type</option>
+                {signalTypeOptions.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              <select value={confidenceFilter} onChange={(e) => setConfidenceFilter(Number(e.target.value))} className="select text-xs h-8">
+                <option value={0}>confidence ≥ 0.0</option>
+                <option value={0.5}>confidence ≥ 0.5</option>
+                <option value={0.7}>confidence ≥ 0.7</option>
+                <option value={0.85}>confidence ≥ 0.85</option>
+              </select>
+              <select value={riskFilter} onChange={(e) => setRiskFilter(e.target.value)} className="select text-xs h-8">
+                <option value="">All risk</option>
+                <option value="low">risk: low</option>
+                <option value="medium">risk: medium</option>
+                <option value="high">risk: high</option>
+              </select>
+            </div>
+          </div>
+
+          <ArbitrageSignalsPanel
+            rows={filteredArbitrage}
+            asOf={arbitrageAsOf}
+            methodVersion={arbitrageMethod}
+            disclaimer={arbitrageDisclaimer}
+          />
         </div>
       </div>
 
