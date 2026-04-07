@@ -37,6 +37,35 @@ export type RankRow = Record<string, unknown> & {
   disagreement_score?: number;
 };
 
+export type StructuredRisk = {
+  data_freshness_risk: "low" | "medium" | "high";
+  liquidity_risk: "low" | "medium" | "high";
+  slippage_risk: "low" | "medium" | "high";
+  confidence: number;
+};
+
+export type ArbitrageSignalRow = {
+  signal_type: string;
+  event_id: string;
+  market_id: string;
+  related_market_id?: string;
+  setup_type: string;
+  thesis: string;
+  entry_rule: string;
+  exit_rule: string;
+  invalid_rule: string;
+  position_sizing_hint: string;
+  raw_gap: number;
+  liquidity_adjusted_edge: number;
+  execution_feasibility_score: number;
+  score: number;
+  risk_flags: StructuredRisk;
+  as_of?: string;
+  method_version?: string;
+  disclaimer: string;
+  derived: boolean;
+};
+
 export type HotTrendSeries = {
   event_id: string;
   title: string;

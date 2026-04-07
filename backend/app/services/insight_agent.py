@@ -37,7 +37,16 @@ class RuleBasedInsightAgent(InsightAgent):
     def explain_signal(self, signal_row: dict) -> str:
         signal_type = signal_row.get("signal_type", "unknown")
         score = signal_row.get("score", 0)
-        risk_flags = ", ".join(signal_row.get("risk_flags", [])) or "none"
+        risk_payload = signal_row.get("risk_flags", {})
+        if isinstance(risk_payload, dict):
+            risk_flags = (
+                f"freshness={risk_payload.get('data_freshness_risk', 'n/a')}, "
+                f"liquidity={risk_payload.get('liquidity_risk', 'n/a')}, "
+                f"slippage={risk_payload.get('slippage_risk', 'n/a')}, "
+                f"confidence={risk_payload.get('confidence', 'n/a')}"
+            )
+        else:
+            risk_flags = ", ".join(risk_payload or []) or "none"
         return f"DERIVED 信号 {signal_type} 得分 {score:.3f}，风险标记: {risk_flags}。"
 
     def compose_notification(self, payload: dict) -> str:
