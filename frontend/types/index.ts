@@ -31,6 +31,12 @@ export type EventRow = {
 export type RankRow = Record<string, unknown> & {
   market_id?: string;
   event_id?: string;
+  title?: string;
+  category?: string;
+  hot_score?: number;
+  official_score?: number;
+  official_rank?: number;
+  source?: string;
   market_question?: string | null;
   event_title?: string | null;
   heat_rise?: number;

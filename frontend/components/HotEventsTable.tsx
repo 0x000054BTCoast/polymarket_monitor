@@ -4,12 +4,25 @@ import { RankRow } from "@/types";
 import Badge from "./ui/Badge";
 import DataTable, { Column } from "./ui/DataTable";
 
+type HotMode = "derived" | "official";
+
 interface HotEventsTableProps {
-  rows: RankRow[];
+  derivedRows: RankRow[];
+  officialRows: RankRow[];
+  mode: HotMode;
+  onModeChange: (mode: HotMode) => void;
   onRowClick?: (row: RankRow) => void;
 }
 
-export default function HotEventsTable({ rows, onRowClick }: HotEventsTableProps) {
+export default function HotEventsTable({
+  derivedRows,
+  officialRows,
+  mode,
+  onModeChange,
+  onRowClick,
+}: HotEventsTableProps) {
+  const rows = mode === "official" ? officialRows : derivedRows;
+
   const formatScore = (score: unknown) => {
     const num = Number(score);
     if (isNaN(num)) return "-";
@@ -33,20 +46,19 @@ export default function HotEventsTable({ rows, onRowClick }: HotEventsTableProps
         return (
           <div className="max-w-[300px]">
             <p className="font-medium text-foreground truncate">{title}</p>
-            {category && (
-              <p className="text-xs text-muted-foreground mt-0.5">{category}</p>
-            )}
+            {category && <p className="text-xs text-muted-foreground mt-0.5">{category}</p>}
           </div>
         );
       },
     },
     {
-      key: "hot_score",
-      header: "Hot Score",
-      width: "120px",
+      key: "score",
+      header: mode === "official" ? "Official Score" : "Hot Score",
+      width: "140px",
       align: "right",
-      render: (value) => {
-        const score = Number(value);
+      render: (_, row) => {
+        const value = mode === "official" ? row.official_score : row.hot_score;
+        const score = Number(value || 0);
         return (
           <div className="flex items-center justify-end gap-2">
             <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
@@ -62,10 +74,13 @@ export default function HotEventsTable({ rows, onRowClick }: HotEventsTableProps
     },
     {
       key: "level",
-      header: "Level",
-      width: "80px",
+      header: mode === "official" ? "Rank" : "Level",
+      width: "90px",
       align: "center",
       render: (_, row) => {
+        if (mode === "official") {
+          return <Badge variant="info">#{Number(row.official_rank || 0) || "-"}</Badge>;
+        }
         const score = Number(row.hot_score || 0);
         const level = getHotLevel(score);
         const labels = {
@@ -78,13 +93,13 @@ export default function HotEventsTable({ rows, onRowClick }: HotEventsTableProps
       },
     },
     {
-      key: "derived",
+      key: "source",
       header: "Source",
-      width: "80px",
+      width: "90px",
       align: "center",
-      render: (value) => (
+      render: () => (
         <Badge variant="muted" size="sm">
-          {value ? "Derived" : "Live"}
+          {mode === "official" ? "Official" : "Derived"}
         </Badge>
       ),
     },
@@ -92,14 +107,30 @@ export default function HotEventsTable({ rows, onRowClick }: HotEventsTableProps
 
   return (
     <div className="card">
-      <div className="p-4 border-b border-border flex items-center justify-between">
+      <div className="p-4 border-b border-border flex items-center justify-between gap-2">
         <div>
           <h3 className="font-semibold">Hot Events</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Events ranked by engagement and activity
+            口径来源：{mode === "official" ? "Official Trending" : "Derived Hot Formula"}
           </p>
         </div>
-        <Badge variant="muted">{rows.length} events</Badge>
+        <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-md border border-border overflow-hidden">
+            <button
+              className={`px-3 py-1 text-xs ${mode === "derived" ? "bg-primary text-primary-foreground" : "bg-transparent text-muted-foreground"}`}
+              onClick={() => onModeChange("derived")}
+            >
+              Derived
+            </button>
+            <button
+              className={`px-3 py-1 text-xs ${mode === "official" ? "bg-primary text-primary-foreground" : "bg-transparent text-muted-foreground"}`}
+              onClick={() => onModeChange("official")}
+            >
+              Official
+            </button>
+          </div>
+          <Badge variant="muted">{rows.length} events</Badge>
+        </div>
       </div>
       <DataTable
         columns={columns}

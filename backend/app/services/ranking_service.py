@@ -60,7 +60,7 @@ class RankingService:
                 row["event_id"] = info.get("event_id")
         return rows
 
-    def hot_events(self, session: Session, limit: int = 20) -> list[dict]:
+    def derived_hot_events(self, session: Session, limit: int = 20) -> list[dict]:
         events = session.exec(select(Event).where(Event.active == True, Event.closed == False)).all()  # noqa: E712
         vols = [e.volume_24hr for e in events]
         oi = [e.open_interest for e in events]
@@ -90,6 +90,10 @@ class RankingService:
         session.add(RankingSnapshot(ranking_type="hot-events", generated_at=datetime.now(timezone.utc), payload={"rows": payload}))
         session.commit()
         return payload
+
+    # Backward-compatible alias for API/service callers.
+    def hot_events(self, session: Session, limit: int = 20) -> list[dict]:
+        return self.derived_hot_events(session, limit=limit)
 
     def heat_risers(self, session: Session, limit: int = 20) -> list[dict]:
         now = datetime.now(timezone.utc).replace(second=0, microsecond=0)
@@ -229,7 +233,7 @@ class RankingService:
         return self._attach_market_context(session, out[:limit])
 
     def new_entrants(self, session: Session, top_n: int = 10) -> list[dict]:
-        current = self.hot_events(session, limit=top_n)
+        current = self.derived_hot_events(session, limit=top_n)
         snaps = session.exec(
             select(RankingSnapshot)
             .where(RankingSnapshot.ranking_type == "hot-events")

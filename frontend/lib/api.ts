@@ -12,6 +12,10 @@ export const api = {
   health: () => getJson<{ status: string }>("/health"),
   system: () => getJson<SystemStatus>("/api/system/status"),
   hotEvents: (limit = 100) => getJson<{ rows: RankRow[]; derived: boolean }>(`/api/rankings/hot-events?limit=${limit}`),
+  trendingOfficial: (limit = 100) =>
+    getJson<{ rows: RankRow[]; source: string; as_of: string; field_mapping_note?: Record<string, string> }>(
+      `/api/rankings/trending-official?limit=${limit}`
+    ),
   hotTrend: (hours = 24, topK = 5) => getJson<{ rows: HotTrendSeries[]; derived: boolean; as_of: string }>(`/api/rankings/hot-trend?hours=${hours}&top_k=${topK}`),
   heatRisers: (limit = 100) => getJson<{ rows: RankRow[]; derived: boolean; fallback: boolean }>(`/api/rankings/heat-risers?limit=${limit}`),
   priceMovers: (limit = 100) => getJson<{ rows: RankRow[]; derived: boolean }>(`/api/rankings/price-movers?limit=${limit}`),
