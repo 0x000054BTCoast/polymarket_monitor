@@ -57,6 +57,7 @@ export default function DashboardPage() {
   const [category, setCategory] = useState("");
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [topK, setTopK] = useState(5);
+  const [topN, setTopN] = useState(100);
   const [timelineSeverity, setTimelineSeverity] = useState("");
   const [signalTypeFilter, setSignalTypeFilter] = useState("");
   const [confidenceFilter, setConfidenceFilter] = useState(0);
@@ -78,10 +79,10 @@ export default function DashboardPage() {
       try {
         const [s, h, ht, hr, pm, a, arb] = await Promise.all([
           api.system(),
-          api.hotEvents(),
+          api.hotEvents(topN),
           api.hotTrend(selectedWindow.hours, topK),
-          api.heatRisers(),
-          api.priceMovers(),
+          api.heatRisers(topN),
+          api.priceMovers(topN),
           api.alerts(),
           api.arbitrageSignals(40),
         ]);
@@ -120,7 +121,7 @@ export default function DashboardPage() {
     load();
 
     return () => clearTimeout(timeout);
-  }, [autoRefresh, topK, selectedWindow.hours]);
+  }, [autoRefresh, topK, topN, selectedWindow.hours]);
 
   const filteredHot = useMemo(() => {
     return hot.filter((r) => {
@@ -262,6 +263,17 @@ export default function DashboardPage() {
                 <option value={5}>5</option>
                 <option value={8}>8</option>
                 <option value={10}>10</option>
+              </select>
+              <label className="text-sm text-muted-foreground">Top N:</label>
+              <select
+                value={topN}
+                onChange={(e) => setTopN(Number(e.target.value))}
+                className="select"
+              >
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={200}>200</option>
               </select>
             </div>
           </div>
