@@ -12,8 +12,11 @@ import PriceMoversTable from "@/components/PriceMoversTable";
 import SourceHealth from "@/components/SourceHealth";
 import SummaryStats from "@/components/SummaryStats";
 import AlertTimeline from "@/components/charts/AlertTimeline";
+import CategoryDonut from "@/components/charts/CategoryDonut";
 import CorrelationView from "@/components/charts/CorrelationView";
+import HeatHistogram from "@/components/charts/HeatHistogram";
 import HeatBarChart from "@/components/charts/HeatBarChart";
+import MoveHeatScatter from "@/components/charts/MoveHeatScatter";
 import TrendChart from "@/components/charts/TrendChart";
 import Badge from "@/components/ui/Badge";
 import { api } from "@/lib/api";
@@ -26,6 +29,15 @@ import {
   RankRow,
   SystemStatus,
 } from "@/types";
+
+type TimeWindow = "15m" | "1h" | "4h" | "24h";
+
+const WINDOW_OPTIONS: Array<{ key: TimeWindow; label: string; hours: number }> = [
+  { key: "15m", label: "15m", hours: 0.25 },
+  { key: "1h", label: "1h", hours: 1 },
+  { key: "4h", label: "4h", hours: 4 },
+  { key: "24h", label: "24h", hours: 24 },
+];
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
@@ -49,9 +61,15 @@ export default function DashboardPage() {
   const [signalTypeFilter, setSignalTypeFilter] = useState("");
   const [confidenceFilter, setConfidenceFilter] = useState(0);
   const [riskFilter, setRiskFilter] = useState("");
+  const [timeWindow, setTimeWindow] = useState<TimeWindow>("24h");
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detail, setDetail] = useState<EventDetailResponse | null>(null);
+
+  const selectedWindow = useMemo(
+    () => WINDOW_OPTIONS.find((w) => w.key === timeWindow) ?? WINDOW_OPTIONS[3],
+    [timeWindow]
+  );
 
   useEffect(() => {
     let timeout: NodeJS.Timeout;
@@ -61,7 +79,7 @@ export default function DashboardPage() {
         const [s, h, ht, hr, pm, a, arb] = await Promise.all([
           api.system(),
           api.hotEvents(),
-          api.hotTrend(24, topK),
+          api.hotTrend(selectedWindow.hours, topK),
           api.heatRisers(),
           api.priceMovers(),
           api.alerts(),
@@ -102,7 +120,7 @@ export default function DashboardPage() {
     load();
 
     return () => clearTimeout(timeout);
-  }, [autoRefresh, topK]);
+  }, [autoRefresh, topK, selectedWindow.hours]);
 
   const filteredHot = useMemo(() => {
     return hot.filter((r) => {
@@ -163,7 +181,6 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-[1600px] mx-auto px-6 py-6 space-y-6">
-        {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
@@ -172,16 +189,11 @@ export default function DashboardPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {degraded && (
-              <Badge variant="warning">Mock Mode</Badge>
-            )}
-            {loading && (
-              <Badge variant="muted">Loading...</Badge>
-            )}
+            {degraded && <Badge variant="warning">Mock Mode</Badge>}
+            {loading && <Badge variant="muted">Loading...</Badge>}
           </div>
         </div>
 
-        {/* Degraded Mode Banner */}
         {degraded && (
           <div className="card p-4 border-warning/30 bg-warning/5">
             <div className="flex items-center gap-3">
@@ -208,10 +220,8 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Summary Stats */}
         <SummaryStats status={status} />
 
-        {/* Filters */}
         <FilterBar
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
@@ -221,7 +231,6 @@ export default function DashboardPage() {
           onAutoRefreshChange={setAutoRefresh}
         />
 
-        {/* Charts Section */}
         <div className="card">
           <div className="p-4 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
@@ -230,7 +239,19 @@ export default function DashboardPage() {
                 Visualizations of market activity and trends
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center flex-wrap gap-2">
+              <label className="text-sm text-muted-foreground">Window:</label>
+              <select
+                value={timeWindow}
+                onChange={(e) => setTimeWindow(e.target.value as TimeWindow)}
+                className="select"
+              >
+                {WINDOW_OPTIONS.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
               <label className="text-sm text-muted-foreground">Top K:</label>
               <select
                 value={topK}
@@ -246,12 +267,11 @@ export default function DashboardPage() {
           </div>
 
           <div className="p-4 space-y-6">
-            {/* Row 1: Trend Chart and Heat Chart */}
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
               <div className="xl:col-span-2">
                 <div className="mb-3 flex items-center justify-between">
                   <h3 className="text-sm font-medium">Hot Score Trend</h3>
-                  <Badge variant="muted" size="sm">24h</Badge>
+                  <Badge variant="muted" size="sm">{selectedWindow.label}</Badge>
                 </div>
                 <div className="chart-container">
                   <TrendChart series={hotTrend} height={220} />
@@ -268,7 +288,6 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Row 2: Correlation View */}
             <div>
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-sm font-medium">Price-Heat Correlation</h3>
@@ -279,7 +298,36 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Row 3: Alert Timeline */}
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-medium">Heat Rise Histogram</h3>
+                  <Badge variant="muted" size="sm">{selectedWindow.label}</Badge>
+                </div>
+                <div className="chart-container">
+                  <HeatHistogram rows={heat} maxItems={40} windowKey={timeWindow} />
+                </div>
+              </div>
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-medium">Category Share</h3>
+                  <Badge variant="muted" size="sm">/api/system/status</Badge>
+                </div>
+                <div className="chart-container">
+                  <CategoryDonut categoryCounts={status?.category_counts} maxItems={8} />
+                </div>
+              </div>
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-medium">Move vs Heat Scatter</h3>
+                  <Badge variant="muted" size="sm">Top N</Badge>
+                </div>
+                <div className="chart-container">
+                  <MoveHeatScatter movers={movers} heat={heat} maxItems={30} windowKey={timeWindow} />
+                </div>
+              </div>
+            </div>
+
             <div>
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-sm font-medium">Alert Timeline</h3>
@@ -301,9 +349,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Tables Section */}
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-6 items-start">
-          {/* Main Content */}
           <div className="space-y-6">
             <HotEventsTable rows={filteredHot} onRowClick={openDetailFromRow} />
 
@@ -313,14 +359,12 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Sidebar */}
           <div className="space-y-6 xl:sticky xl:top-20">
             <AlertsList alerts={alerts} maxItems={15} />
             <SourceHealth status={status} />
           </div>
         </div>
 
-        {/* Arbitrage Signals */}
         <div className="space-y-3">
           <div className="card p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
             <div>
@@ -360,7 +404,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Event Detail Drawer */}
       <EventDrawer
         open={drawerOpen}
         detail={detail}
