@@ -17,6 +17,7 @@ class Settings(BaseSettings):
 
     discovery_poll_seconds: int = 60
     snapshot_poll_seconds: int = 60
+    snapshot_market_limit: int = 100
     flush_aggregation_seconds: int = 15
     cleanup_check_seconds: int = 3600
     websocket_stale_seconds: int = 45

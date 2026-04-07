@@ -91,3 +91,21 @@ def test_prune_old_data(monkeypatch) -> None:
         assert len(session.exec(select(MinuteAggregation)).all()) == 1
         assert len(session.exec(select(RankingSnapshot)).all()) == 1
         assert len(session.exec(select(AlertRecord)).all()) == 1
+
+
+def test_backfill_snapshots_uses_configured_limit(monkeypatch) -> None:
+    engine = create_engine("sqlite://")
+    SQLModel.metadata.create_all(engine)
+    _patch_session(monkeypatch, engine)
+    monkeypatch.setattr("app.services.aggregation_service.settings.snapshot_market_limit", 1)
+
+    with Session(engine) as session:
+        session.add(Market(id="m-low", event_id="e1", question="q", clob_token_id="token-low", volume_24hr=1))
+        session.add(Market(id="m-high", event_id="e2", question="q", clob_token_id="token-high", volume_24hr=99))
+        session.commit()
+
+    stub = StubClobClient(price=0.8)
+    service = AggregationService(clob=stub, ws_listener=StubWsListener())
+    saved = service.backfill_snapshots()
+
+    assert saved == 1

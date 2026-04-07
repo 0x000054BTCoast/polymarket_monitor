@@ -31,11 +31,107 @@ class GammaClient:
         )
 
     @retry(wait=wait_exponential(min=1, max=10), stop=stop_after_attempt(3), reraise=True)
-    def fetch_active_events(self) -> list[dict[str, Any]]:
-        r = self._client.get("/events", params={"active": "true", "closed": "false"})
-        r.raise_for_status()
-        data = r.json()
-        return data if isinstance(data, list) else []
+    def fetch_active_events(
+        self, limit: int = 100, max_pages: int = 50, max_total: int = 5000
+    ) -> list[dict[str, Any]]:
+        events: list[dict[str, Any]] = []
+        seen_event_ids: set[str] = set()
+        cursor: str | None = None
+        page = 1
+        offset = 0
+        use_mode: str | None = None
+
+        for _ in range(max_pages):
+            if len(events) >= max_total:
+                break
+
+            params: dict[str, Any] = {"active": "true", "closed": "false", "limit": limit}
+            if use_mode == "cursor" and cursor:
+                params["cursor"] = cursor
+            elif use_mode == "offset":
+                params["offset"] = offset
+            elif use_mode == "page":
+                params["page"] = page
+
+            r = self._client.get("/events", params=params)
+            r.raise_for_status()
+
+            page_items, cursor, page, offset, use_mode, is_end = self._resolve_next_page_state(
+                r.json(), limit=limit, page=page, offset=offset, cursor=cursor, current_mode=use_mode
+            )
+
+            for raw_event in page_items:
+                event_id = str(raw_event.get("id") or raw_event.get("eventId") or "")
+                if event_id:
+                    if event_id in seen_event_ids:
+                        continue
+                    seen_event_ids.add(event_id)
+                events.append(raw_event)
+                if len(events) >= max_total:
+                    break
+
+            if is_end:
+                break
+
+        return events
+
+    def _resolve_next_page_state(
+        self,
+        payload: Any,
+        *,
+        limit: int,
+        page: int,
+        offset: int,
+        cursor: str | None,
+        current_mode: str | None,
+    ) -> tuple[list[dict[str, Any]], str | None, int, int, str | None, bool]:
+        if isinstance(payload, list):
+            return payload, None, page, offset, current_mode, True
+
+        if not isinstance(payload, dict):
+            return [], None, page, offset, current_mode, True
+
+        items = payload.get("events") or payload.get("data") or payload.get("results") or []
+        page_items = items if isinstance(items, list) else []
+
+        next_cursor = payload.get("nextCursor") or payload.get("cursor") or payload.get("next_cursor")
+        has_next = payload.get("hasNext")
+        if has_next is None:
+            has_next = payload.get("has_next")
+        next_offset = payload.get("nextOffset")
+        if next_offset is None:
+            next_offset = payload.get("next_offset")
+        next_page = payload.get("nextPage")
+        if next_page is None:
+            next_page = payload.get("next_page")
+
+        if next_cursor:
+            return (
+                page_items,
+                str(next_cursor),
+                page,
+                offset,
+                "cursor",
+                not bool(has_next) if has_next is not None else False,
+            )
+
+        if isinstance(next_offset, int):
+            return page_items, None, page, next_offset, "offset", False
+
+        if isinstance(next_page, int):
+            return page_items, None, next_page, offset, "page", False
+
+        mode = current_mode
+        if mode == "offset":
+            return page_items, None, page, offset + limit, "offset", len(page_items) < limit
+        if mode == "page":
+            return page_items, None, page + 1, offset, "page", len(page_items) < limit
+
+        if has_next is False:
+            return page_items, None, page, offset, None, True
+        if len(page_items) >= limit:
+            return page_items, None, page, offset + limit, "offset", False
+        return page_items, None, page, offset, None, True
 
     def parse_event_markets(
         self, event_payload: dict[str, Any]

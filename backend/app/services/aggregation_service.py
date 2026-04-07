@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete
 from sqlalchemy.dialects.sqlite import insert
+from sqlalchemy.sql.functions import coalesce
 from sqlmodel import select
 
 from app.config import settings
@@ -18,10 +19,12 @@ class AggregationService:
         self.clob = clob
         self.ws_listener = ws_listener
 
-    def backfill_snapshots(self, limit_markets: int = 100) -> int:
+    def backfill_snapshots(self, limit_markets: int | None = None) -> int:
         saved = 0
+        market_limit = limit_markets or settings.snapshot_market_limit
         with get_session() as session:
-            markets = session.exec(select(Market).limit(limit_markets)).all()
+            activity_score = coalesce(Market.volume_24hr, 0.0) + coalesce(Market.liquidity, 0.0)
+            markets = session.exec(select(Market).order_by(activity_score.desc()).limit(market_limit)).all()
             for m in markets:
                 market_ref = m.clob_token_id or m.asset_id
                 if not market_ref:
