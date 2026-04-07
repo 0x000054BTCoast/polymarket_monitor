@@ -149,6 +149,18 @@ Frontend runs at: `http://localhost:3000`
 make backend-test
 ```
 
+## WS 本地排障清单
+
+当你发现前端 `Source Health` 中 `market_ws` 长时间不是 `ok` 时，按以下顺序排查：
+
+1. **确认后台任务未被禁用**：检查 `.env` 的 `DISABLE_BACKGROUND_JOBS`，本地联调应为 `false`。
+2. **确认 WS 地址可用**：检查 `.env` 的 `MARKET_WS_URL` 是否为可连通的官方 public market stream 地址。
+3. **确认数据库已发现资产**：查看 `market` 表里是否存在 `asset_id`（为空会导致 WS 进入 `idle_no_assets`）。
+4. **检查系统状态接口**：访问 `http://localhost:8000/api/system/status`，重点看：
+   - `source_health[].status`
+   - `source_health[].tracked_asset_count`
+   - `source_health[].last_subscribe_at`
+
 Current tests cover:
 - payload parsing
 - ranking formulas

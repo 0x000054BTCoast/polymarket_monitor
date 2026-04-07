@@ -11,6 +11,8 @@ export type SystemStatus = {
     last_error_message?: string | null;
     last_ok_at?: string | null;
     last_error_at?: string | null;
+    tracked_asset_count?: number | null;
+    last_subscribe_at?: string | null;
   }>;
 };
 

@@ -13,7 +13,7 @@ from app.services.discovery_service import DiscoveryService
 from app.services.notification_service import NotificationService
 from app.services.ranking_service import RankingService
 from app.storage.db import get_session
-from app.storage.models import SourceHealth
+from app.storage.models import Checkpoint, SourceHealth
 from app.ws.market_ws import MarketWebSocketListener
 
 logger = logging.getLogger(__name__)
@@ -38,6 +38,10 @@ class SchedulerService:
 
     def start(self) -> None:
         self._started_at = datetime.now(timezone.utc)
+        try:
+            self._discovery_tick()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Initial discovery tick failed, will retry on scheduler interval: %s", exc)
         self.scheduler.add_job(self._discovery_tick, "interval", seconds=settings.discovery_poll_seconds)
         self.scheduler.add_job(self._snapshot_tick, "interval", seconds=settings.snapshot_poll_seconds)
         self.scheduler.add_job(
@@ -66,6 +70,15 @@ class SchedulerService:
         result = self.discovery.run()
         assets = self.discovery.tracked_asset_ids()
         self.ws_listener.set_assets(assets)
+        now = datetime.now(timezone.utc)
+        with get_session() as session:
+            asset_ckpt = session.get(Checkpoint, "market_ws:tracked_asset_count") or Checkpoint(
+                key="market_ws:tracked_asset_count", value="0"
+            )
+            asset_ckpt.value = str(len(assets))
+            asset_ckpt.updated_at = now
+            session.add(asset_ckpt)
+            session.commit()
         logger.info("Discovery synced events=%s markets=%s assets=%s", result["events"], result["markets"], len(assets))
 
     def _snapshot_tick(self) -> None:
@@ -86,12 +99,15 @@ class SchedulerService:
 
     def _ws_health_tick(self) -> None:
         now = datetime.now(timezone.utc)
-        stale = self.ws_listener.is_stale()
-        in_startup_grace = (now - self._started_at).total_seconds() < settings.websocket_startup_grace_seconds
-        if stale and in_startup_grace:
-            status = "starting"
+        if self.ws_listener.is_idle_no_assets():
+            status = "idle_no_assets"
         else:
-            status = "stale" if stale else ("ok" if self.ws_listener.state.connected else "disconnected")
+            stale = self.ws_listener.is_stale()
+            in_startup_grace = (now - self._started_at).total_seconds() < settings.websocket_startup_grace_seconds
+            if stale and in_startup_grace:
+                status = "starting"
+            else:
+                status = "stale" if stale else ("ok" if self.ws_listener.state.connected else "disconnected")
         with get_session() as session:
             row = session.get(SourceHealth, "market_ws") or SourceHealth(source="market_ws")
             row.status = status
