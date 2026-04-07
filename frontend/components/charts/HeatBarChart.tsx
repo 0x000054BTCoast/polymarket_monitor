@@ -9,6 +9,9 @@ interface HeatBarChartProps {
 }
 
 export default function HeatBarChart({ rows, threshold = 2, maxItems = 8 }: HeatBarChartProps) {
+  const shortMarketId = (marketId?: string) => (marketId ? `${marketId.slice(0, 8)}...` : "-");
+  const marketDisplay = (row: RankRow) =>
+    row.market_question ?? row.event_title ?? shortMarketId(row.market_id);
   const data = rows.slice(0, maxItems);
 
   if (data.length === 0) {
@@ -28,13 +31,18 @@ export default function HeatBarChart({ rows, threshold = 2, maxItems = 8 }: Heat
         const width = (heat / maxHeat) * 100;
         const isHigh = heat >= threshold;
         const marketId = String(row.market_id || `market-${index}`);
+        const label = marketDisplay(row);
 
         return (
           <div key={marketId} className="group">
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-muted-foreground font-mono truncate max-w-[120px]">
-                {marketId.slice(0, 12)}...
-              </span>
+              <div className="min-w-0">
+                <div className="text-xs font-medium truncate max-w-[180px]">{label}</div>
+                <div className="text-[10px] text-muted-foreground truncate max-w-[180px]">
+                  {row.event_title ?? "-"}
+                  {row.market_id ? ` · ${shortMarketId(row.market_id)}` : ""}
+                </div>
+              </div>
               <span
                 className={`text-xs font-mono font-medium ${
                   isHigh ? "text-destructive" : "text-foreground"

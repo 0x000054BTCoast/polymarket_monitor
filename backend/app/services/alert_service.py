@@ -6,12 +6,34 @@ from datetime import datetime, timezone
 from sqlmodel import Session, select
 
 from app.services.ranking_service import RankingService
-from app.storage.models import AlertConfig, AlertRecord, Checkpoint, MinuteAggregation, SourceHealth
+from app.storage.models import AlertConfig, AlertRecord, Checkpoint, Event, Market, MinuteAggregation, SourceHealth
 
 
 class AlertService:
     def __init__(self, ranking: RankingService | None = None) -> None:
         self.ranking = ranking or RankingService()
+
+    @staticmethod
+    def _market_label(market_id: str, market_context: dict[str, dict[str, str | None]]) -> str:
+        ctx = market_context.get(market_id, {})
+        return ctx.get("market_question") or ctx.get("event_title") or f"Market {market_id}"
+
+    def _market_context(self, session: Session, market_ids: set[str]) -> dict[str, dict[str, str | None]]:
+        if not market_ids:
+            return {}
+        rows = session.exec(
+            select(Market, Event)
+            .join(Event, Event.id == Market.event_id, isouter=True)
+            .where(Market.id.in_(market_ids))
+        ).all()
+        return {
+            market.id: {
+                "market_question": market.question,
+                "event_title": event.title if event else None,
+                "event_id": market.event_id,
+            }
+            for market, event in rows
+        }
 
     def get_or_create_config(self, session: Session) -> AlertConfig:
         config = session.get(AlertConfig, 1)
@@ -68,6 +90,12 @@ class AlertService:
         hot_rows = self.ranking.hot_events(session, limit=10)
         heat_rows = self.ranking.heat_risers(session, limit=5)
         movers = self.ranking.price_movers(session, limit=20)
+        tracked_market_ids = {
+            str(r["market_id"])
+            for r in [*heat_rows, *movers]
+            if r.get("market_id")
+        }
+        market_context = self._market_context(session, tracked_market_ids)
 
         if cfg.hot_top_n_enabled:
             ck = session.get(Checkpoint, "alerts:hot_top10") or Checkpoint(key="alerts:hot_top10", value="[]")
@@ -97,11 +125,20 @@ class AlertService:
             for market_id in current_ids:
                 streaks[market_id] = int(streaks.get(market_id, 0)) + 1
                 if streaks[market_id] == cfg.heat_consecutive_minutes:
+                    context = market_context.get(market_id, {})
                     self.emit(
                         session,
                         alert_type="heat_rise_consecutive_top5",
                         market_id=market_id,
-                        message=f"Market {market_id} stayed in DERIVED heat top 5 for {cfg.heat_consecutive_minutes} minutes",
+                        event_id=context.get("event_id"),
+                        message=(
+                            f"{self._market_label(market_id, market_context)} stayed in DERIVED heat top 5 "
+                            f"for {cfg.heat_consecutive_minutes} minutes"
+                        ),
+                        metadata={
+                            "market_question": context.get("market_question"),
+                            "event_title": context.get("event_title"),
+                        },
                     )
                     emitted += 1
             for market_id in list(streaks.keys()):
@@ -115,13 +152,21 @@ class AlertService:
         if cfg.price_move_1m_enabled:
             for row in movers:
                 if float(row.get("abs_move_1m", 0)) >= cfg.price_move_1m_threshold:
+                    market_id = str(row["market_id"])
+                    context = market_context.get(market_id, {})
                     self.emit(
                         session,
                         alert_type="price_move_1m_threshold",
-                        market_id=row["market_id"],
+                        market_id=market_id,
+                        event_id=context.get("event_id"),
                         severity="warning",
-                        message=f"Market {row['market_id']} 1m move exceeded threshold",
-                        metadata={"abs_move_1m": row["abs_move_1m"], "threshold": cfg.price_move_1m_threshold},
+                        message=f"{self._market_label(market_id, market_context)} 1m move exceeded threshold",
+                        metadata={
+                            "abs_move_1m": row["abs_move_1m"],
+                            "threshold": cfg.price_move_1m_threshold,
+                            "market_question": context.get("market_question"),
+                            "event_title": context.get("event_title"),
+                        },
                     )
                     emitted += 1
 
@@ -140,13 +185,21 @@ class AlertService:
                 current = rows[0].trade_notional_1m
                 baseline = sum(r.trade_notional_1m for r in rows[1:6]) / max(len(rows[1:6]), 1)
                 if baseline > 0 and current >= baseline * cfg.notional_spike_multiple:
+                    context = market_context.get(market_id, {})
                     self.emit(
                         session,
                         alert_type="notional_spike",
                         market_id=market_id,
+                        event_id=context.get("event_id"),
                         severity="warning",
-                        message=f"Market {market_id} notional spike detected",
-                        metadata={"current": current, "baseline": baseline, "multiple": cfg.notional_spike_multiple},
+                        message=f"{self._market_label(market_id, market_context)} notional spike detected",
+                        metadata={
+                            "current": current,
+                            "baseline": baseline,
+                            "multiple": cfg.notional_spike_multiple,
+                            "market_question": context.get("market_question"),
+                            "event_title": context.get("event_title"),
+                        },
                     )
                     emitted += 1
 

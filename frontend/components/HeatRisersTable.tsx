@@ -9,6 +9,10 @@ interface HeatRisersTableProps {
 }
 
 export default function HeatRisersTable({ rows }: HeatRisersTableProps) {
+  const shortMarketId = (marketId?: string) => (marketId ? `${marketId.slice(0, 8)}...` : "-");
+  const marketDisplay = (row: RankRow) =>
+    row.market_question ?? row.event_title ?? shortMarketId(row.market_id);
+
   const formatHeat = (value: unknown) => {
     const num = Number(value);
     if (isNaN(num)) return "-";
@@ -26,10 +30,14 @@ export default function HeatRisersTable({ rows }: HeatRisersTableProps) {
     {
       key: "market_id",
       header: "Market",
-      render: (value) => (
-        <span className="font-mono text-xs text-muted-foreground">
-          {String(value).slice(0, 12)}...
-        </span>
+      render: (_, row) => (
+        <div className="leading-tight">
+          <div className="text-sm font-medium truncate max-w-[300px]">{marketDisplay(row)}</div>
+          <div className="text-xs text-muted-foreground truncate max-w-[300px]">
+            {row.event_title ?? "-"}
+            {row.market_id ? ` · ${shortMarketId(row.market_id)}` : ""}
+          </div>
+        </div>
       ),
     },
     {
