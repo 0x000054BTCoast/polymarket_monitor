@@ -221,7 +221,10 @@ export default function DashboardPage() {
   const openDetailFromRow = async (row: RankRow) => {
     const eventId = String(row.event_id || "");
     if (!eventId) return;
+    await openDetailByEventId(eventId);
+  };
 
+  const openDetailByEventId = async (eventId: string) => {
     setDrawerOpen(true);
     setDetail(null);
 
@@ -501,6 +504,7 @@ export default function DashboardPage() {
             asOf={arbitrageAsOf}
             methodVersion={arbitrageMethod}
             disclaimer={arbitrageDisclaimer}
+            onOpenEvent={openDetailByEventId}
           />
         </div>
       </div>

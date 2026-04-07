@@ -49,8 +49,11 @@ export type StructuredRisk = {
 export type ArbitrageSignalRow = {
   signal_type: string;
   event_id: string;
+  event_title?: string | null;
   market_id: string;
+  market_question?: string | null;
   related_market_id?: string;
+  related_market_question?: string | null;
   setup_type: string;
   thesis: string;
   entry_rule: string;

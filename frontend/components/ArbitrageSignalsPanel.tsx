@@ -8,6 +8,7 @@ type ArbitrageSignalsPanelProps = {
   asOf?: string;
   methodVersion?: string;
   disclaimer?: string;
+  onOpenEvent?: (eventId: string) => void;
 };
 
 function riskVariant(level: string): "success" | "warning" | "destructive" {
@@ -16,7 +17,7 @@ function riskVariant(level: string): "success" | "warning" | "destructive" {
   return "destructive";
 }
 
-export default function ArbitrageSignalsPanel({ rows, asOf, methodVersion, disclaimer }: ArbitrageSignalsPanelProps) {
+export default function ArbitrageSignalsPanel({ rows, asOf, methodVersion, disclaimer, onOpenEvent }: ArbitrageSignalsPanelProps) {
   return (
     <div className="card">
       <div className="p-4 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -40,6 +41,27 @@ export default function ArbitrageSignalsPanel({ rows, asOf, methodVersion, discl
 
         {rows.map((row, idx) => (
           <div key={`${row.market_id}-${row.related_market_id || "na"}-${idx}`} className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
+            <div className="space-y-1.5">
+              <div className="text-sm font-semibold">{row.event_title || "Untitled Event"}</div>
+              <div className="text-xs text-muted-foreground">
+                <span>{row.market_question || row.market_id}</span>
+                <span className="px-1.5">↔</span>
+                <span>{row.related_market_question || row.related_market_id || "-"}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-mono text-muted-foreground">event_id: {row.event_id}</span>
+                {row.event_id && onOpenEvent && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenEvent(row.event_id)}
+                    className="text-xs px-2 py-1 rounded border border-border hover:bg-muted transition-colors"
+                  >
+                    查看 Event 详情
+                  </button>
+                )}
+              </div>
+            </div>
+
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="info">{row.signal_type}</Badge>
               <Badge variant="muted">{row.setup_type}</Badge>
